@@ -3,6 +3,10 @@
 from app.services.insight_engine.behaviour_summary import (
     BehaviourSummaryService,
 )
+from app.services.insight_engine.evidence_quality import (
+    EvidenceQualityService,
+    InsightNotFoundError,
+)
 from app.services.insight_engine.customer_engine import (
     AnalysisError,
     AnalysisOutput,
@@ -19,6 +23,8 @@ __all__ = [
     "InsightEngine",
     "CustomerInsightEngine",
     "BehaviourSummaryService",
+    "EvidenceQualityService",
+    "InsightNotFoundError",
     "AnalysisOutput",
     "AnalysisError",
     "ClientNotFoundError",

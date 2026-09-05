@@ -8,6 +8,7 @@ import type {
   ColumnMapping,
   CustomerSignal,
   Dataset,
+  EvidenceQuality,
   HealthResponse,
   ImportResult,
   InsightTypeInfo,
@@ -91,4 +92,7 @@ export const api = {
 
   behaviourSummary: (clientId: number) =>
     getJson<BehaviourSummary>(`/clients/${clientId}/behaviour-summary`),
+
+  evidenceQuality: (insightId: number) =>
+    getJson<EvidenceQuality>(`/insights/${insightId}/evidence-quality`),
 };

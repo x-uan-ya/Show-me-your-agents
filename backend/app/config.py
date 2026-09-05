@@ -53,6 +53,19 @@ class Settings(BaseSettings):
     confidence_high_threshold: float = Field(default=0.75, ge=0.0, le=1.0)
     confidence_medium_threshold: float = Field(default=0.50, ge=0.0, le=1.0)
 
+    # Evidence-quality thresholds (configurable). All rules that raise flags use
+    # these so the assessment stays transparent and adjustable.
+    # LIMITED_EVIDENCE: fewer than this many independent supporting signals.
+    evidence_min_independent: int = Field(default=3, ge=1)
+    # SMALL_SAMPLE: analysed dataset has fewer than this many signals total.
+    evidence_min_dataset_sample: int = Field(default=30, ge=1)
+    # SOURCE_CONCENTRATION: one source accounts for more than this fraction of
+    # the supporting evidence (only meaningful with 2+ evidence items).
+    evidence_source_concentration_ratio: float = Field(default=0.8, ge=0.0, le=1.0)
+    # LIMITED_CONTEXT: fewer than this fraction of supporting signals carry
+    # contextual fields (source / date / product).
+    evidence_min_context_ratio: float = Field(default=0.5, ge=0.0, le=1.0)
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]

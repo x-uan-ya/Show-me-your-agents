@@ -173,3 +173,37 @@ export interface BehaviourSummary {
   observations: string[];
   limitations: string[];
 }
+
+// --- Evidence quality ---
+
+export type EvidenceFlag =
+  | "LIMITED_EVIDENCE"
+  | "SMALL_SAMPLE"
+  | "SOURCE_CONCENTRATION"
+  | "CONFLICTING_SIGNALS"
+  | "LIMITED_CONTEXT";
+
+export type EvidenceQualityStatus = "OK" | "CAUTION" | "INSUFFICIENT";
+
+export interface EvidenceQuality {
+  insight_id: number;
+  status: EvidenceQualityStatus;
+  confidence: number;
+  confidence_label: ConfidenceLabel;
+  evidence_count: number;
+  independent_evidence_count: number;
+  evidence_coverage: number | null;
+  source_distribution: Record<string, number>;
+  flags: EvidenceFlag[];
+  explanation: string;
+  limitations: string[];
+}
+
+// Human-friendly descriptions for each evidence flag (frontend copy).
+export const EVIDENCE_FLAG_LABELS: Record<EvidenceFlag, string> = {
+  LIMITED_EVIDENCE: "Limited evidence",
+  SMALL_SAMPLE: "Small sample",
+  SOURCE_CONCENTRATION: "Source concentration",
+  CONFLICTING_SIGNALS: "Conflicting signals",
+  LIMITED_CONTEXT: "Limited context",
+};

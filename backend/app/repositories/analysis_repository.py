@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy import func, select
+from sqlalchemy.orm import Session, selectinload
 
 from app.models.analysis_run import AnalysisRun
 from app.models.customer_insight import CustomerInsight
@@ -111,5 +111,43 @@ class AnalysisRepository:
             select(InsightEvidence)
             .where(InsightEvidence.insight_id == insight_id)
             .order_by(InsightEvidence.id)
+        )
+        return list(self._db.scalars(stmt).all())
+
+    def get_insight(self, insight_id: int) -> CustomerInsight | None:
+        return self._db.get(CustomerInsight, insight_id)
+
+    def get_run(self, run_id: int) -> AnalysisRun | None:
+        return self._db.get(AnalysisRun, run_id)
+
+    def signals_with_evidence_for_insight(
+        self, insight_id: int
+    ) -> list[tuple[InsightEvidence, CustomerSignal]]:
+        """Return (evidence, signal) pairs backing an insight."""
+        stmt = (
+            select(InsightEvidence, CustomerSignal)
+            .join(CustomerSignal, InsightEvidence.signal_id == CustomerSignal.id)
+            .where(InsightEvidence.insight_id == insight_id)
+            .order_by(InsightEvidence.id)
+        )
+        return [tuple(row) for row in self._db.execute(stmt).all()]
+
+    def dataset_signal_count(self, dataset_id: int) -> int:
+        stmt = select(func.count(CustomerSignal.id)).where(
+            CustomerSignal.dataset_id == dataset_id
+        )
+        return int(self._db.scalar(stmt) or 0)
+
+    def sibling_insights(
+        self, run_id: int, exclude_insight_id: int
+    ) -> list[CustomerInsight]:
+        """Other insights produced by the same analysis run, evidence loaded."""
+        stmt = (
+            select(CustomerInsight)
+            .where(
+                CustomerInsight.analysis_run_id == run_id,
+                CustomerInsight.id != exclude_insight_id,
+            )
+            .options(selectinload(CustomerInsight.evidence))
         )
         return list(self._db.scalars(stmt).all())

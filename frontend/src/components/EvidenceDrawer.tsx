@@ -4,6 +4,7 @@ import {
   type Insight,
 } from "../types";
 import { confidenceBadgeClass, looksSynthetic } from "../utils/format";
+import { EvidenceQualityPanel } from "./EvidenceQualityPanel";
 
 interface Props {
   insight: Insight;
@@ -125,6 +126,15 @@ export function EvidenceDrawer({ insight, signalsById, onClose }: Props) {
               })}
             </ul>
           )}
+        </section>
+
+        <section className="mt-6 border-t border-slate-800 pt-5">
+          <h4 className="text-sm font-semibold text-slate-200">
+            Evidence quality
+          </h4>
+          <div className="mt-3">
+            <EvidenceQualityPanel insightId={insight.id} />
+          </div>
         </section>
       </aside>
     </div>
