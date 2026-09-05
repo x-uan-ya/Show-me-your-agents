@@ -12,7 +12,7 @@ from typing import Literal
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-AIProvider = Literal["mock", "bedrock", "openai"]
+AIProvider = Literal["mock", "hackathon"]
 
 
 class Settings(BaseSettings):
@@ -36,14 +36,15 @@ class Settings(BaseSettings):
     cors_origins: str = Field(default="http://localhost:5173,http://127.0.0.1:5173")
 
     # AI provider selection. MOCK works with no external credentials.
+    # "hackathon" targets the organiser-provided JSON API backed by AWS Bedrock
+    # (Claude Sonnet 4.5) and is not implemented until their spec is shared.
     ai_provider: AIProvider = Field(default="mock")
 
-    # Optional provider-specific settings (unused in mock mode).
-    openai_api_key: str | None = Field(default=None)
-    openai_model: str = Field(default="gpt-4o-mini")
-
-    bedrock_region: str = Field(default="us-east-1")
-    bedrock_model_id: str = Field(default="anthropic.claude-3-5-sonnet-20240620-v1:0")
+    # Placeholders for the organiser-provided hackathon API. Their exact names,
+    # shape, and auth scheme are unknown until the organiser confirms via Slack,
+    # so these are provisional and unused in mock mode.
+    hackathon_api_base_url: str | None = Field(default=None)
+    hackathon_api_key: str | None = Field(default=None)
 
     @property
     def cors_origin_list(self) -> list[str]:
