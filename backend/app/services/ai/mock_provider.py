@@ -69,16 +69,18 @@ class MockAIProvider(AIProvider):
             category, keyword = match
             raw_insights.append(
                 {
-                    "title": f"{MOCK_LABEL} {category.value} signal",
+                    "title": f"{MOCK_LABEL} Possible {category.value.replace('_', ' ').lower()} signal",
                     "summary": (
-                        f"{MOCK_LABEL} Heuristic match on '{keyword}'. "
-                        "Development output only, not real model analysis."
+                        f"{MOCK_LABEL} Customer feedback suggests this may be "
+                        f"associated with {category.value}. Development output "
+                        "only, not real model analysis."
                     ),
                     "category": category.value,
                     "confidence": _BASE_CONFIDENCE,
                     "reasoning_summary": (
-                        f"{MOCK_LABEL} Matched keyword '{keyword}' to "
-                        f"{category.value} using deterministic mock heuristics."
+                        f"{MOCK_LABEL} Available evidence indicates the wording "
+                        f"'{keyword}' appears related to {category.value}. This "
+                        "is a deterministic keyword association, not a proven cause."
                     ),
                     "evidence_signal_ids": [signal.id],
                 }

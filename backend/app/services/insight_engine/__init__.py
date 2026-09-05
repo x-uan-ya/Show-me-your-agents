@@ -1,5 +1,25 @@
 """Insight engine service."""
 
+from app.services.insight_engine.customer_engine import (
+    AnalysisError,
+    AnalysisOutput,
+    ClientNotFoundError,
+    CustomerInsightEngine,
+    DatasetNotFoundError,
+    DatasetOwnershipError,
+    EmptyDatasetError,
+    ProviderFailureError,
+)
 from app.services.insight_engine.engine import InsightEngine
 
-__all__ = ["InsightEngine"]
+__all__ = [
+    "InsightEngine",
+    "CustomerInsightEngine",
+    "AnalysisOutput",
+    "AnalysisError",
+    "ClientNotFoundError",
+    "DatasetNotFoundError",
+    "DatasetOwnershipError",
+    "EmptyDatasetError",
+    "ProviderFailureError",
+]

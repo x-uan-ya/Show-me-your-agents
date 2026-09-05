@@ -46,6 +46,13 @@ class Settings(BaseSettings):
     hackathon_api_base_url: str | None = Field(default=None)
     hackathon_api_key: str | None = Field(default=None)
 
+    # Confidence display thresholds (configurable). Confidence is stored 0-1
+    # internally and shown as a qualitative band, never as a scientific
+    # probability. >= high => "High"; >= medium (and < high) => "Medium";
+    # otherwise "Low".
+    confidence_high_threshold: float = Field(default=0.75, ge=0.0, le=1.0)
+    confidence_medium_threshold: float = Field(default=0.50, ge=0.0, le=1.0)
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]

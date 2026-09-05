@@ -13,6 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import get_settings
 from app.database import init_db
 from app.routers import (
+    analysis_router,
     clients_datasets_router,
     clients_router,
     datasets_router,
@@ -45,6 +46,7 @@ app.include_router(insights_router, prefix=settings.api_prefix)
 app.include_router(clients_router, prefix=settings.api_prefix)
 app.include_router(clients_datasets_router, prefix=settings.api_prefix)
 app.include_router(datasets_router, prefix=settings.api_prefix)
+app.include_router(analysis_router, prefix=settings.api_prefix)
 
 
 @app.get("/")
