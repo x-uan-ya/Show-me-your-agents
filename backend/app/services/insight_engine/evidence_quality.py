@@ -75,10 +75,13 @@ class EvidenceQualityService:
         self._repo = AnalysisRepository(db)
         self._settings = get_settings()
 
-    def assess(self, insight_id: int) -> EvidenceQuality:
-        insight = self._repo.get_insight(insight_id)
+    def assess(self, insight_id: int, client_id: int) -> EvidenceQuality:
+        # Client isolation: only assess an insight owned by this client.
+        insight = self._repo.get_insight_for_client(insight_id, client_id)
         if insight is None:
-            raise InsightNotFoundError(f"Insight {insight_id} not found.")
+            raise InsightNotFoundError(
+                f"Insight {insight_id} not found for client {client_id}."
+            )
 
         pairs = self._repo.signals_with_evidence_for_insight(insight_id)
         signals = [signal for _, signal in pairs]

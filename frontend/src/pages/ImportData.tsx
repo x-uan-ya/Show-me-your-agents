@@ -41,11 +41,11 @@ export function ImportData() {
   };
 
   const doConfirm = async () => {
-    if (!upload) return;
+    if (!upload || clientId === null) return;
     setError(null);
     setBusy(true);
     try {
-      const res = await api.confirmMapping(upload.dataset_id, mapping);
+      const res = await api.confirmMapping(clientId, upload.dataset_id, mapping);
       setResult(res);
     } catch (e) {
       setError((e as Error).message);

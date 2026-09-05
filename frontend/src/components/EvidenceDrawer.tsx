@@ -133,7 +133,10 @@ export function EvidenceDrawer({ insight, signalsById, onClose }: Props) {
             Evidence quality
           </h4>
           <div className="mt-3">
-            <EvidenceQualityPanel insightId={insight.id} />
+            <EvidenceQualityPanel
+              clientId={insight.client_id}
+              insightId={insight.id}
+            />
           </div>
         </section>
       </aside>

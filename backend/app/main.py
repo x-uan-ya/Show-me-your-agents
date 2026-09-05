@@ -17,7 +17,6 @@ from app.routers import (
     behaviour_router,
     clients_datasets_router,
     clients_router,
-    datasets_router,
     health_router,
     insights_router,
 )
@@ -46,7 +45,6 @@ app.include_router(health_router, prefix=settings.api_prefix)
 app.include_router(insights_router, prefix=settings.api_prefix)
 app.include_router(clients_router, prefix=settings.api_prefix)
 app.include_router(clients_datasets_router, prefix=settings.api_prefix)
-app.include_router(datasets_router, prefix=settings.api_prefix)
 app.include_router(analysis_router, prefix=settings.api_prefix)
 app.include_router(behaviour_router, prefix=settings.api_prefix)
 

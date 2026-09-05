@@ -53,8 +53,8 @@ def _seed(session, *, n_dataset_signals, evidence_specs, category="RETENTION_DRI
 
     ``evidence_specs`` is a list of dicts with signal fields (source, date,
     product, text, campaign) used to build the supporting signals/evidence.
-    Returns the insight id. ``extra_insights`` optionally creates sibling
-    insights: list of (category, [signal_index,...]).
+    Returns (client_id, insight_id). ``extra_insights`` optionally creates
+    sibling insights: list of (category, [signal_index,...]).
     """
     c = Client(name="Acme")
     session.add(c)
@@ -131,7 +131,7 @@ def _seed(session, *, n_dataset_signals, evidence_specs, category="RETENTION_DRI
             session.flush()
 
     session.commit()
-    return insight.id
+    return c.id, insight.id
 
 
 _D1 = date_cls(2024, 1, 1)
@@ -151,11 +151,11 @@ def test_clean_insight_is_ok(env):
             _many("web_review", 2, date=_D1, product="Widget")
             + _many("survey", 2, date=_D2, product="Widget")
         )
-        iid = _seed(session, n_dataset_signals=50, evidence_specs=specs)
+        cid, iid = _seed(session, n_dataset_signals=50, evidence_specs=specs)
     finally:
         session.close()
 
-    body = client.get(f"/api/insights/{iid}/evidence-quality").json()
+    body = client.get(f"/api/clients/{cid}/insights/{iid}/evidence-quality").json()
     assert body["status"] == "OK"
     assert body["flags"] == []
     assert body["independent_evidence_count"] == 4
@@ -168,11 +168,11 @@ def test_limited_evidence_flag(env):
     session = sf()
     try:
         specs = _many("survey", 2, date=_D1, product="Widget")
-        iid = _seed(session, n_dataset_signals=50, evidence_specs=specs)
+        cid, iid = _seed(session, n_dataset_signals=50, evidence_specs=specs)
     finally:
         session.close()
 
-    body = client.get(f"/api/insights/{iid}/evidence-quality").json()
+    body = client.get(f"/api/clients/{cid}/insights/{iid}/evidence-quality").json()
     assert "LIMITED_EVIDENCE" in body["flags"]
     assert body["status"] == "CAUTION"
 
@@ -186,11 +186,11 @@ def test_small_sample_flag(env):
             + _many("survey", 2, date=_D2, product="W")
         )
         # Dataset below default minimum of 30.
-        iid = _seed(session, n_dataset_signals=10, evidence_specs=specs)
+        cid, iid = _seed(session, n_dataset_signals=10, evidence_specs=specs)
     finally:
         session.close()
 
-    body = client.get(f"/api/insights/{iid}/evidence-quality").json()
+    body = client.get(f"/api/clients/{cid}/insights/{iid}/evidence-quality").json()
     assert "SMALL_SAMPLE" in body["flags"]
     assert "Small samples may produce unstable patterns." in body["limitations"]
 
@@ -201,11 +201,11 @@ def test_source_concentration_flag(env):
     try:
         # 4 of 4 from one source -> concentration.
         specs = _many("web_review", 4, date=_D1, product="W")
-        iid = _seed(session, n_dataset_signals=50, evidence_specs=specs)
+        cid, iid = _seed(session, n_dataset_signals=50, evidence_specs=specs)
     finally:
         session.close()
 
-    body = client.get(f"/api/insights/{iid}/evidence-quality").json()
+    body = client.get(f"/api/clients/{cid}/insights/{iid}/evidence-quality").json()
     assert "SOURCE_CONCENTRATION" in body["flags"]
     assert body["source_distribution"] == {"web_review": 4}
 
@@ -219,7 +219,7 @@ def test_conflicting_signals_flag(env):
             _many("web_review", 2, date=_D1, product="W")
             + _many("survey", 2, date=_D2, product="W")
         )
-        iid = _seed(
+        cid, iid = _seed(
             session,
             n_dataset_signals=50,
             evidence_specs=specs,
@@ -229,7 +229,7 @@ def test_conflicting_signals_flag(env):
     finally:
         session.close()
 
-    body = client.get(f"/api/insights/{iid}/evidence-quality").json()
+    body = client.get(f"/api/clients/{cid}/insights/{iid}/evidence-quality").json()
     assert "CONFLICTING_SIGNALS" in body["flags"]
 
 
@@ -239,11 +239,11 @@ def test_limited_context_flag(env):
     try:
         # 4 signals, none carry source/date/product -> limited context.
         specs = [{"text": "no context here"} for _ in range(4)]
-        iid = _seed(session, n_dataset_signals=50, evidence_specs=specs)
+        cid, iid = _seed(session, n_dataset_signals=50, evidence_specs=specs)
     finally:
         session.close()
 
-    body = client.get(f"/api/insights/{iid}/evidence-quality").json()
+    body = client.get(f"/api/clients/{cid}/insights/{iid}/evidence-quality").json()
     assert "LIMITED_CONTEXT" in body["flags"]
 
 
@@ -255,11 +255,11 @@ def test_promo_limitation_is_data_derived(env):
             [{"source": "survey", "date": _D1, "product": "W", "text": "used a voucher"}]
             + _many("survey", 3, date=_D2, product="W")
         )
-        iid = _seed(session, n_dataset_signals=50, evidence_specs=specs)
+        cid, iid = _seed(session, n_dataset_signals=50, evidence_specs=specs)
     finally:
         session.close()
 
-    body = client.get(f"/api/insights/{iid}/evidence-quality").json()
+    body = client.get(f"/api/clients/{cid}/insights/{iid}/evidence-quality").json()
     assert any("Promotional activity" in lim for lim in body["limitations"])
 
 
@@ -270,15 +270,23 @@ def test_no_online_limitation_when_no_online_source(env):
         # Only survey/support sources -> the online representativeness caveat
         # must NOT appear (limitations are data-derived, not invented).
         specs = _many("survey", 4, date=_D1, product="W")
-        iid = _seed(session, n_dataset_signals=50, evidence_specs=specs)
+        cid, iid = _seed(session, n_dataset_signals=50, evidence_specs=specs)
     finally:
         session.close()
 
-    body = client.get(f"/api/insights/{iid}/evidence-quality").json()
+    body = client.get(f"/api/clients/{cid}/insights/{iid}/evidence-quality").json()
     assert not any("Online feedback" in lim for lim in body["limitations"])
 
 
 def test_missing_insight_returns_404(env):
-    client, _ = env
-    resp = client.get("/api/insights/999999/evidence-quality")
+    client, sf = env
+    session = sf()
+    try:
+        c = Client(name="Acme")
+        session.add(c)
+        session.commit()
+        cid = c.id
+    finally:
+        session.close()
+    resp = client.get(f"/api/clients/{cid}/insights/999999/evidence-quality")
     assert resp.status_code == 404

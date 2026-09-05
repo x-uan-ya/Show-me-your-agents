@@ -4,12 +4,15 @@ Two endpoints implement the adaptive CSV ingestion flow:
 
 - ``POST /api/clients/{client_id}/datasets/upload`` inspects an uploaded file
   and returns detected columns, sample rows and a suggested mapping.
-- ``POST /api/datasets/{dataset_id}/confirm-mapping`` validates the confirmed
-  mapping, normalises staged rows and stores CustomerSignal records.
+- ``POST /api/clients/{client_id}/datasets/{dataset_id}/confirm-mapping``
+  validates the confirmed mapping, normalises staged rows and stores
+  CustomerSignal records.
 
-Security: only known file extensions/content types are accepted, a development
-file-size limit is enforced, and uploaded content is never executed. All
-customer text is treated as untrusted data.
+Security: both routes are scoped by ``client_id`` and verify that the dataset
+belongs to that client before doing any work (client isolation). Only known
+file extensions/content types are accepted, a development file-size limit is
+enforced, and uploaded content is never executed. All customer text is treated
+as untrusted data.
 """
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
@@ -40,7 +43,6 @@ _ALLOWED_CONTENT_TYPES = (
 )
 
 clients_datasets_router = APIRouter(prefix="/clients", tags=["ingestion"])
-datasets_router = APIRouter(prefix="/datasets", tags=["ingestion"])
 
 
 def _reject(message: str, code: int = status.HTTP_400_BAD_REQUEST):
@@ -96,17 +98,26 @@ async def upload_dataset(
     )
 
 
-@datasets_router.post(
-    "/{dataset_id}/confirm-mapping", response_model=ImportResultResponse
+@clients_datasets_router.post(
+    "/{client_id}/datasets/{dataset_id}/confirm-mapping",
+    response_model=ImportResultResponse,
 )
 def confirm_mapping(
+    client_id: int,
     dataset_id: int,
     payload: ConfirmMappingRequest,
     db: Session = Depends(get_db),
 ) -> ImportResultResponse:
-    dataset = DatasetRepository(db).get(dataset_id)
+    if ClientRepository(db).get(client_id) is None:
+        _reject(f"Client {client_id} not found", status.HTTP_404_NOT_FOUND)
+
+    # Client isolation: only operate on a dataset owned by this client.
+    dataset = DatasetRepository(db).get_for_client(dataset_id, client_id)
     if dataset is None:
-        _reject(f"Dataset {dataset_id} not found", status.HTTP_404_NOT_FOUND)
+        _reject(
+            f"Dataset {dataset_id} not found for client {client_id}",
+            status.HTTP_404_NOT_FOUND,
+        )
 
     service = CsvIngestionService(db)
     try:

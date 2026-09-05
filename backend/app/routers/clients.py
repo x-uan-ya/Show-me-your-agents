@@ -14,6 +14,11 @@ from app.schemas.client import ClientCreate, ClientRead
 from app.schemas.customer_insight import CustomerInsightRead
 from app.schemas.customer_signal import CustomerSignalRead
 from app.schemas.dataset import DatasetRead
+from app.schemas.evidence_quality import EvidenceQuality
+from app.services.insight_engine.evidence_quality import (
+    EvidenceQualityService,
+    InsightNotFoundError,
+)
 
 router = APIRouter(prefix="/clients", tags=["clients"])
 
@@ -71,3 +76,23 @@ def list_client_insights(
 ) -> list[CustomerInsightRead]:
     _require_client(repo, client_id)
     return [CustomerInsightRead.model_validate(i) for i in repo.list_insights(client_id)]
+
+
+@router.get(
+    "/{client_id}/insights/{insight_id}/evidence-quality",
+    response_model=EvidenceQuality,
+)
+def insight_evidence_quality(
+    client_id: int,
+    insight_id: int,
+    db: Session = Depends(get_db),
+    repo: ClientRepository = Depends(_repo),
+) -> EvidenceQuality:
+    """Assess how well-supported an insight is, scoped to the owning client."""
+    _require_client(repo, client_id)
+    service = EvidenceQualityService(db)
+    try:
+        # Ownership enforced inside the service via get_insight_for_client.
+        return service.assess(insight_id, client_id)
+    except InsightNotFoundError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc

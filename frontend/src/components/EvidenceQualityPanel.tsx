@@ -7,6 +7,7 @@ import {
 } from "../types";
 
 interface Props {
+  clientId: number;
   insightId: number;
 }
 
@@ -23,7 +24,7 @@ function statusClass(status: string): string {
 
 // Fetches and renders the evidence-quality assessment for one insight:
 // what the data supports, what it cannot establish, and possible limitations.
-export function EvidenceQualityPanel({ insightId }: Props) {
+export function EvidenceQualityPanel({ clientId, insightId }: Props) {
   const [quality, setQuality] = useState<EvidenceQuality | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -33,7 +34,7 @@ export function EvidenceQualityPanel({ insightId }: Props) {
     setLoading(true);
     setError(null);
     api
-      .evidenceQuality(insightId)
+      .evidenceQuality(clientId, insightId)
       .then((q) => {
         if (!cancelled) setQuality(q);
       })
@@ -46,7 +47,7 @@ export function EvidenceQualityPanel({ insightId }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [insightId]);
+  }, [clientId, insightId]);
 
   if (loading) {
     return <p className="text-sm text-slate-400">Assessing evidence quality...</p>;

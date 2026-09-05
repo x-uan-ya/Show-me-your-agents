@@ -63,7 +63,7 @@ def test_normal_csv(client: TestClient) -> None:
 
     dataset_id = body["dataset_id"]
     confirm = client.post(
-        f"/api/datasets/{dataset_id}/confirm-mapping",
+        f"/api/clients/{cid}/datasets/{dataset_id}/confirm-mapping",
         json={"mapping": body["suggested_mapping"]},
     )
     assert confirm.status_code == 200
@@ -96,7 +96,7 @@ def test_missing_text_field(client: TestClient) -> None:
     up = _upload(client, cid, csv_text)
     dataset_id = up.json()["dataset_id"]
     confirm = client.post(
-        f"/api/datasets/{dataset_id}/confirm-mapping",
+        f"/api/clients/{cid}/datasets/{dataset_id}/confirm-mapping",
         json={"mapping": {"rating": "rating"}},
     )
     assert confirm.status_code == 400
@@ -109,7 +109,7 @@ def test_empty_rows_are_skipped(client: TestClient) -> None:
     up = _upload(client, cid, csv_text)
     body = up.json()
     confirm = client.post(
-        f"/api/datasets/{body['dataset_id']}/confirm-mapping",
+        f"/api/clients/{cid}/datasets/{body['dataset_id']}/confirm-mapping",
         json={"mapping": {"text": "text", "rating": "rating"}},
     ).json()
     assert confirm["imported"] == 2
@@ -122,7 +122,7 @@ def test_malformed_dates_recorded_not_dropped(client: TestClient) -> None:
     up = _upload(client, cid, csv_text)
     body = up.json()
     confirm = client.post(
-        f"/api/datasets/{body['dataset_id']}/confirm-mapping",
+        f"/api/clients/{cid}/datasets/{body['dataset_id']}/confirm-mapping",
         json={"mapping": {"text": "text", "date": "date"}},
     ).json()
     # Both rows imported; one error recorded for the bad date.
@@ -138,7 +138,7 @@ def test_malformed_ratings_recorded_not_dropped(client: TestClient) -> None:
     up = _upload(client, cid, csv_text)
     body = up.json()
     confirm = client.post(
-        f"/api/datasets/{body['dataset_id']}/confirm-mapping",
+        f"/api/clients/{cid}/datasets/{body['dataset_id']}/confirm-mapping",
         json={"mapping": {"text": "text", "rating": "rating"}},
     ).json()
     assert confirm["imported"] == 2
@@ -151,7 +151,7 @@ def test_unknown_columns_preserved_in_metadata(client: TestClient) -> None:
     up = _upload(client, cid, csv_text)
     body = up.json()
     client.post(
-        f"/api/datasets/{body['dataset_id']}/confirm-mapping",
+        f"/api/clients/{cid}/datasets/{body['dataset_id']}/confirm-mapping",
         json={"mapping": {"text": "text"}},
     )
     signals = client.get(f"/api/clients/{cid}/signals").json()
@@ -189,7 +189,7 @@ def test_confirm_unknown_column_rejected(client: TestClient) -> None:
     up = _upload(client, cid, "text\nHello\n")
     dataset_id = up.json()["dataset_id"]
     confirm = client.post(
-        f"/api/datasets/{dataset_id}/confirm-mapping",
+        f"/api/clients/{cid}/datasets/{dataset_id}/confirm-mapping",
         json={"mapping": {"text": "does_not_exist"}},
     )
     assert confirm.status_code == 400
@@ -202,7 +202,7 @@ def test_customer_text_not_altered_beyond_trim(client: TestClient) -> None:
     up = _upload(client, cid, csv_text)
     body = up.json()
     client.post(
-        f"/api/datasets/{body['dataset_id']}/confirm-mapping",
+        f"/api/clients/{cid}/datasets/{body['dataset_id']}/confirm-mapping",
         json={"mapping": {"text": "text"}},
     )
     signals = client.get(f"/api/clients/{cid}/signals").json()

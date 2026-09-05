@@ -74,10 +74,11 @@ export const api = {
     return (await response.json()) as UploadResponse;
   },
 
-  confirmMapping: (datasetId: number, mapping: ColumnMapping) =>
-    postJson<ImportResult>(`/datasets/${datasetId}/confirm-mapping`, {
-      mapping,
-    }),
+  confirmMapping: (clientId: number, datasetId: number, mapping: ColumnMapping) =>
+    postJson<ImportResult>(
+      `/clients/${clientId}/datasets/${datasetId}/confirm-mapping`,
+      { mapping },
+    ),
 
   listDatasets: (clientId: number) =>
     getJson<Dataset[]>(`/clients/${clientId}/datasets`),
@@ -93,6 +94,8 @@ export const api = {
   behaviourSummary: (clientId: number) =>
     getJson<BehaviourSummary>(`/clients/${clientId}/behaviour-summary`),
 
-  evidenceQuality: (insightId: number) =>
-    getJson<EvidenceQuality>(`/insights/${insightId}/evidence-quality`),
+  evidenceQuality: (clientId: number, insightId: number) =>
+    getJson<EvidenceQuality>(
+      `/clients/${clientId}/insights/${insightId}/evidence-quality`,
+    ),
 };

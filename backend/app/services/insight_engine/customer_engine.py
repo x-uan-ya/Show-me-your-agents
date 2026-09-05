@@ -35,6 +35,7 @@ from app.repositories.analysis_repository import AnalysisRepository
 from app.repositories.client_repository import ClientRepository
 from app.repositories.dataset_repository import DatasetRepository
 from app.services.ai.base import AIProvider, SignalInput
+from app.services.ai.prompt import build_analysis_prompt
 from app.services.ai.validation import validate_ai_output
 
 
@@ -97,12 +98,27 @@ class CustomerInsightEngine:
         if not signals:
             raise EmptyDatasetError(f"Dataset {dataset_id} has no customer signals.")
 
+        # Client-isolation guarantee: every gathered signal must belong to the
+        # verified client. signals_for_dataset already scopes by the owned
+        # dataset; this assertion is defence in depth against a future query
+        # change silently leaking cross-client data into a model request.
+        assert all(
+            s.client_id == client_id for s in signals
+        ), "Refusing to analyse signals from another client."
+
         # 4. prepare a safe structured representation (id as string; text only,
         #    plus minimal non-sensitive context). Customer text stays untrusted
         #    data; we never treat it as instructions.
         signal_inputs = [self._to_signal_input(s) for s in signals]
         signal_by_id = {str(s.id): s for s in signals}
         supplied_ids = list(signal_by_id.keys())
+
+        # Build the framed prompt (SYSTEM INSTRUCTIONS vs untrusted CUSTOMER DATA)
+        # from this single client's signals. The mock provider classifies from
+        # SignalInput directly; the hackathon provider will send this prompt to
+        # the model. Constructing it here guarantees the separation is applied
+        # to exactly the signals we validated as owned by this client.
+        self._prompt = build_analysis_prompt(signal_inputs)
 
         # 11 (open the run first so provider failures are recorded).
         run = self._analysis.create_run(

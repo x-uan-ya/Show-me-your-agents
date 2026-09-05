@@ -43,6 +43,17 @@ class DatasetRepository:
     def get(self, dataset_id: int) -> Dataset | None:
         return self._db.get(Dataset, dataset_id)
 
+    def get_for_client(self, dataset_id: int, client_id: int) -> Dataset | None:
+        """Fetch a dataset only if it belongs to ``client_id``.
+
+        Enforces client isolation at the query level: a dataset owned by another
+        client is treated as if it does not exist for this caller.
+        """
+        dataset = self._db.get(Dataset, dataset_id)
+        if dataset is None or dataset.client_id != client_id:
+            return None
+        return dataset
+
     def store_signals(
         self, dataset: Dataset, normalised: "list[NormalisedRow]"
     ) -> int:

@@ -29,7 +29,15 @@ class SignalInput:
 
 
 class AIProvider(ABC):
-    """Abstract contract every AI provider must satisfy."""
+    """Abstract contract every AI provider must satisfy.
+
+    Security note: providers analyse only the signals passed into
+    :meth:`analyze_signals`. The interface deliberately exposes NO tools,
+    callbacks, or database access that would let a provider (or the model behind
+    it) fetch arbitrary client records. A provider receives one client's signals
+    for one analysis and returns a structured result; it cannot reach back into
+    the system for other data.
+    """
 
     #: Short identifier, e.g. "mock", "hackathon".
     name: str = "base"

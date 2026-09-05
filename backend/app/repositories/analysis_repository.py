@@ -117,6 +117,19 @@ class AnalysisRepository:
     def get_insight(self, insight_id: int) -> CustomerInsight | None:
         return self._db.get(CustomerInsight, insight_id)
 
+    def get_insight_for_client(
+        self, insight_id: int, client_id: int
+    ) -> CustomerInsight | None:
+        """Fetch an insight only if it belongs to ``client_id``.
+
+        Enforces client isolation: an insight owned by another client is treated
+        as if it does not exist for this caller.
+        """
+        insight = self._db.get(CustomerInsight, insight_id)
+        if insight is None or insight.client_id != client_id:
+            return None
+        return insight
+
     def get_run(self, run_id: int) -> AnalysisRun | None:
         return self._db.get(AnalysisRun, run_id)
 
