@@ -2,8 +2,11 @@
 // frontend is not hard-coded to any environment.
 
 import type {
+  AnalyseResponse,
   Client,
   ColumnMapping,
+  CustomerSignal,
+  Dataset,
   HealthResponse,
   ImportResult,
   InsightTypeInfo,
@@ -72,5 +75,16 @@ export const api = {
   confirmMapping: (datasetId: number, mapping: ColumnMapping) =>
     postJson<ImportResult>(`/datasets/${datasetId}/confirm-mapping`, {
       mapping,
+    }),
+
+  listDatasets: (clientId: number) =>
+    getJson<Dataset[]>(`/clients/${clientId}/datasets`),
+
+  listSignals: (clientId: number) =>
+    getJson<CustomerSignal[]>(`/clients/${clientId}/signals`),
+
+  analyse: (clientId: number, datasetId: number) =>
+    postJson<AnalyseResponse>(`/clients/${clientId}/analyse`, {
+      dataset_id: datasetId,
     }),
 };
