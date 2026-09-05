@@ -1,5 +1,8 @@
 """Insight engine service."""
 
+from app.services.insight_engine.behaviour_summary import (
+    BehaviourSummaryService,
+)
 from app.services.insight_engine.customer_engine import (
     AnalysisError,
     AnalysisOutput,
@@ -15,6 +18,7 @@ from app.services.insight_engine.engine import InsightEngine
 __all__ = [
     "InsightEngine",
     "CustomerInsightEngine",
+    "BehaviourSummaryService",
     "AnalysisOutput",
     "AnalysisError",
     "ClientNotFoundError",

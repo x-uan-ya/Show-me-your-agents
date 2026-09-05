@@ -148,3 +148,28 @@ export interface Dataset {
   uploaded_at: string;
   status: string;
 }
+
+// --- Trial vs Retention behaviour summary ---
+
+export interface BehaviourEvidence {
+  signal_id: number;
+  excerpt: string;
+}
+
+export interface BehaviourDriver {
+  insight_id: number;
+  title: string;
+  summary: string;
+  confidence: number;
+  confidence_label: ConfidenceLabel;
+  evidence_count: number;
+  evidence: BehaviourEvidence[];
+}
+
+export interface BehaviourSummary {
+  trial_drivers: BehaviourDriver[];
+  retention_drivers: BehaviourDriver[];
+  non_repeat_drivers: BehaviourDriver[];
+  observations: string[];
+  limitations: string[];
+}

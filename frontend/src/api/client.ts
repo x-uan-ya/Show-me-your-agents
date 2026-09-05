@@ -3,6 +3,7 @@
 
 import type {
   AnalyseResponse,
+  BehaviourSummary,
   Client,
   ColumnMapping,
   CustomerSignal,
@@ -87,4 +88,7 @@ export const api = {
     postJson<AnalyseResponse>(`/clients/${clientId}/analyse`, {
       dataset_id: datasetId,
     }),
+
+  behaviourSummary: (clientId: number) =>
+    getJson<BehaviourSummary>(`/clients/${clientId}/behaviour-summary`),
 };

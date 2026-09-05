@@ -3,13 +3,15 @@ import { useState } from "react";
 import { Dashboard } from "./pages/Dashboard";
 import { ImportData } from "./pages/ImportData";
 import { Insights } from "./pages/Insights";
+import { TrialVsRetention } from "./pages/TrialVsRetention";
 
-type View = "dashboard" | "import" | "insights";
+type View = "dashboard" | "import" | "insights" | "trial-retention";
 
 const TABS: { id: View; label: string }[] = [
   { id: "dashboard", label: "Dashboard" },
   { id: "import", label: "Import Data" },
   { id: "insights", label: "Customer Insights" },
+  { id: "trial-retention", label: "Trial vs Retention" },
 ];
 
 export default function App() {
@@ -36,6 +38,7 @@ export default function App() {
       {view === "dashboard" && <Dashboard />}
       {view === "import" && <ImportData />}
       {view === "insights" && <Insights />}
+      {view === "trial-retention" && <TrialVsRetention />}
     </div>
   );
 }

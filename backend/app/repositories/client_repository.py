@@ -5,7 +5,7 @@ All lookups for owned records (datasets, signals, insights) are scoped by
 """
 
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.models.client import Client
 from app.models.customer_insight import CustomerInsight
@@ -52,5 +52,25 @@ class ClientRepository:
             select(CustomerInsight)
             .where(CustomerInsight.client_id == client_id)
             .order_by(CustomerInsight.id)
+        )
+        return list(self._db.scalars(stmt).all())
+
+    def insights_by_categories(
+        self, client_id: int, categories: list[str]
+    ) -> list[CustomerInsight]:
+        """Load a client's insights in the given categories, evidence eager-loaded.
+
+        Ordered by descending confidence so the strongest-supported drivers
+        appear first. Evidence is loaded so callers can enforce the grounding
+        rule (insights without evidence are excluded downstream).
+        """
+        stmt = (
+            select(CustomerInsight)
+            .where(
+                CustomerInsight.client_id == client_id,
+                CustomerInsight.category.in_(categories),
+            )
+            .options(selectinload(CustomerInsight.evidence))
+            .order_by(CustomerInsight.confidence.desc(), CustomerInsight.id)
         )
         return list(self._db.scalars(stmt).all())
