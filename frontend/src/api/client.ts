@@ -1,15 +1,44 @@
 // Thin API client for the backend. The base URL is configurable via env so the
 // frontend is not hard-coded to any environment.
 
-import type { HealthResponse, InsightTypeInfo } from "../types";
+import type {
+  Client,
+  ColumnMapping,
+  HealthResponse,
+  ImportResult,
+  InsightTypeInfo,
+  UploadResponse,
+} from "../types";
 
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000/api";
 
+async function parseError(response: Response): Promise<string> {
+  try {
+    const body = await response.json();
+    if (typeof body?.detail === "string") return body.detail;
+  } catch {
+    // fall through to a generic message
+  }
+  return `Request failed: ${response.status}`;
+}
+
 async function getJson<T>(path: string): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`);
   if (!response.ok) {
-    throw new Error(`Request failed: ${response.status}`);
+    throw new Error(await parseError(response));
+  }
+  return (await response.json()) as T;
+}
+
+async function postJson<T>(path: string, body: unknown): Promise<T> {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    throw new Error(await parseError(response));
   }
   return (await response.json()) as T;
 }
@@ -17,4 +46,31 @@ async function getJson<T>(path: string): Promise<T> {
 export const api = {
   health: () => getJson<HealthResponse>("/health"),
   taxonomy: () => getJson<InsightTypeInfo[]>("/insights/taxonomy"),
+
+  listClients: () => getJson<Client[]>("/clients"),
+  createClient: (payload: { name: string; industry?: string }) =>
+    postJson<Client>("/clients", payload),
+
+  uploadDataset: async (
+    clientId: number,
+    file: File,
+    name?: string,
+  ): Promise<UploadResponse> => {
+    const form = new FormData();
+    form.append("file", file);
+    if (name) form.append("name", name);
+    const response = await fetch(
+      `${API_BASE_URL}/clients/${clientId}/datasets/upload`,
+      { method: "POST", body: form },
+    );
+    if (!response.ok) {
+      throw new Error(await parseError(response));
+    }
+    return (await response.json()) as UploadResponse;
+  },
+
+  confirmMapping: (datasetId: number, mapping: ColumnMapping) =>
+    postJson<ImportResult>(`/datasets/${datasetId}/confirm-mapping`, {
+      mapping,
+    }),
 };

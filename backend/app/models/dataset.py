@@ -5,9 +5,11 @@ reviews or survey responses.
 """
 
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy import DateTime, ForeignKey, Integer, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.types import JSON
 
 from app.database import Base
 
@@ -27,8 +29,15 @@ class Dataset(Base):
     uploaded_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
-    # e.g. "pending", "ready", "failed".
+    # Lifecycle: "awaiting_mapping" -> "ready" (after confirm) / "failed".
     status: Mapped[str] = mapped_column(String(32), default="pending")
+
+    # Staging area between upload and confirm-mapping. Rows are held here so the
+    # user can review columns and confirm a mapping before we persist signals.
+    # Kept simple for the hackathon; a production system might stage to object
+    # storage instead of the row DB.
+    pending_columns: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
+    pending_rows: Mapped[list[dict[str, Any]] | None] = mapped_column(JSON, nullable=True)
 
     client: Mapped["Client"] = relationship(back_populates="datasets")  # noqa: F821
     signals: Mapped[list["CustomerSignal"]] = relationship(  # noqa: F821
