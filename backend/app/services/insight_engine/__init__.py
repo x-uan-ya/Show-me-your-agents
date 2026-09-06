@@ -7,6 +7,10 @@ from app.services.insight_engine.evidence_quality import (
     EvidenceQualityService,
     InsightNotFoundError,
 )
+from app.services.insight_engine.insight_context import (
+    ContextClientNotFoundError,
+    InsightContextService,
+)
 from app.services.insight_engine.customer_engine import (
     AnalysisError,
     AnalysisOutput,
@@ -25,6 +29,8 @@ __all__ = [
     "BehaviourSummaryService",
     "EvidenceQualityService",
     "InsightNotFoundError",
+    "InsightContextService",
+    "ContextClientNotFoundError",
     "AnalysisOutput",
     "AnalysisError",
     "ClientNotFoundError",

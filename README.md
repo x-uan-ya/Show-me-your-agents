@@ -233,6 +233,113 @@ only `analyze_signals` over the signals passed in for a single client's single
 analysis. It has no tools, callbacks, or database access that could let a
 provider (or the model) fetch arbitrary client records.
 
+## Handoff API (for downstream integration)
+
+This is the stable contract another team component integrates against to consume
+validated customer insights. You do not need to understand the internal insight
+engine to use it. The payload is customer understanding only: it contains no
+campaign objectives, marketing recommendations, ideas, content, calendars, or
+publishing schedules.
+
+### `GET /api/clients/{client_id}/insight-context`
+
+Returns a single coherent snapshot from the client's **latest completed analysis
+run**, with insights grouped by behavioural category.
+
+**Example request**
+
+```bash
+curl http://localhost:8000/api/clients/1/insight-context
+```
+
+**Example response**
+
+```json
+{
+  "client_id": 1,
+  "analysis_run_id": 1,
+  "dataset_id": 1,
+  "generated_at": "2026-09-06T06:34:52.614731",
+  "purchase_drivers": [
+    {
+      "insight_id": 1,
+      "category": "PURCHASE_DRIVER",
+      "title": "Possible purchase driver signal",
+      "summary": "Customer feedback suggests this may be associated with PURCHASE_DRIVER.",
+      "confidence": 0.55,
+      "confidence_label": "Medium",
+      "evidence_count": 1,
+      "evidence_quality": { "status": "CAUTION", "flags": ["LIMITED_EVIDENCE", "SMALL_SAMPLE"] },
+      "supporting_evidence_ids": [1]
+    }
+  ],
+  "trial_drivers": [],
+  "retention_drivers": [],
+  "non_repeat_drivers": [],
+  "pain_points": [],
+  "unmet_needs": [],
+  "customer_anxieties": [],
+  "emerging_demand": [],
+  "data_quality": {
+    "dataset_signal_count": 1,
+    "total_insights": 1,
+    "insights_with_caution": 1,
+    "small_sample": true
+  },
+  "limitations": [
+    "Qualitative feedback cannot confirm actual repeat-purchase behaviour.",
+    "Missing transaction data limits behavioural conclusions.",
+    "Online feedback may not represent all customers.",
+    "Small samples may produce unstable patterns."
+  ]
+}
+```
+
+**Field descriptions**
+
+Envelope:
+- `client_id` — the client this context belongs to.
+- `analysis_run_id` / `dataset_id` — the run and dataset the snapshot came from;
+  `null` if the client has no completed analysis yet.
+- `generated_at` — ISO-8601 completion time of that run; `null` if none.
+- Eight category arrays (`purchase_drivers` … `emerging_demand`) — the insights,
+  each ordered by descending confidence.
+- `data_quality` — `dataset_signal_count`, `total_insights`,
+  `insights_with_caution` (insights whose evidence quality is not `OK`), and
+  `small_sample` (dataset below the configured minimum).
+- `limitations` — plain-language caveats derived from the actual data; safe to
+  surface to end users.
+
+Each insight object:
+- `insight_id` — stable id for referencing the insight.
+- `category` — one of the eight `UPPERCASE` categories.
+- `title` / `summary` — concise, non-causal description.
+- `confidence` — stored 0–1 value. **Not a probability**; do not present it as one.
+- `confidence_label` — `High` / `Medium` / `Low` (configurable thresholds).
+- `evidence_count` — number of supporting signals.
+- `evidence_quality` — `{ status: OK|CAUTION|INSUFFICIENT, flags: [...] }`.
+- `supporting_evidence_ids` — `CustomerSignal` ids backing the insight.
+
+**Limitations to respect**
+- Insights are evidence-backed indications, not proof of causation.
+- Confidence is qualitative; check `evidence_quality` and `data_quality` before
+  relying on any insight, especially when `small_sample` is `true`.
+- A client with no completed run returns a valid but empty context (all arrays
+  empty, `analysis_run_id` null, with an explanatory entry in `limitations`).
+
+**Error responses**
+- `404 Not Found` — unknown `client_id` (`{"detail": "Client {id} not found."}`).
+- Cross-client access is not possible: the endpoint only returns the requested
+  client's data.
+
+### `GET /api/clients/{client_id}/insights/export?format=json|csv`
+
+Same content as `insight-context`.
+- `format=json` (default) returns the identical JSON envelope.
+- `format=csv` returns one row per insight (flattened across all categories),
+  as a downloadable `text/csv` attachment.
+- An unsupported `format` returns `422`.
+
 ## Limitations
 
 This system works with qualitative customer feedback. That kind of evidence can

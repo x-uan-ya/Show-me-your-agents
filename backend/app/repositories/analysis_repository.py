@@ -133,6 +133,33 @@ class AnalysisRepository:
     def get_run(self, run_id: int) -> AnalysisRun | None:
         return self._db.get(AnalysisRun, run_id)
 
+    def latest_completed_run(self, client_id: int) -> AnalysisRun | None:
+        """Return the most recent completed run for a client, or None.
+
+        The insight-context handoff exposes a single coherent snapshot, so it
+        uses the latest completed run rather than mixing insights across runs.
+        """
+        stmt = (
+            select(AnalysisRun)
+            .where(
+                AnalysisRun.client_id == client_id,
+                AnalysisRun.status == "completed",
+            )
+            .order_by(AnalysisRun.id.desc())
+            .limit(1)
+        )
+        return self._db.scalars(stmt).first()
+
+    def insights_for_run(self, run_id: int) -> list[CustomerInsight]:
+        """All insights for a run, evidence eager-loaded, ordered by confidence."""
+        stmt = (
+            select(CustomerInsight)
+            .where(CustomerInsight.analysis_run_id == run_id)
+            .options(selectinload(CustomerInsight.evidence))
+            .order_by(CustomerInsight.confidence.desc(), CustomerInsight.id)
+        )
+        return list(self._db.scalars(stmt).all())
+
     def signals_with_evidence_for_insight(
         self, insight_id: int
     ) -> list[tuple[InsightEvidence, CustomerSignal]]:
