@@ -4,6 +4,7 @@ from app.services.ai.base import AIProvider, SignalInput
 from app.services.ai.factory import build_provider, get_ai_provider
 from app.services.ai.hackathon_provider import (
     HackathonAIProvider,
+    HackathonProviderError,
     HackathonProviderNotConfiguredError,
 )
 from app.services.ai.mock_provider import MockAIProvider
@@ -15,6 +16,7 @@ __all__ = [
     "SignalInput",
     "MockAIProvider",
     "HackathonAIProvider",
+    "HackathonProviderError",
     "HackathonProviderNotConfiguredError",
     "ValidationOutcome",
     "validate_ai_output",

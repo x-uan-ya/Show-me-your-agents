@@ -9,7 +9,7 @@ external API keys.
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import Field
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 AIProvider = Literal["mock", "hackathon"]
@@ -40,11 +40,24 @@ class Settings(BaseSettings):
     # (Claude Sonnet 4.5) and is not implemented until their spec is shared.
     ai_provider: AIProvider = Field(default="mock")
 
-    # Placeholders for the organiser-provided hackathon API. Their exact names,
-    # shape, and auth scheme are unknown until the organiser confirms via Slack,
-    # so these are provisional and unused in mock mode.
-    hackathon_api_base_url: str | None = Field(default=None)
-    hackathon_api_key: str | None = Field(default=None)
+    # Organiser-provided hackathon gateway (Ollama-native API fronting AWS
+    # Bedrock Claude Sonnet 4.5). Only used when AI_PROVIDER=hackathon. Env var
+    # names match the organiser's convention (LLM_GATEWAY_URL / LLM_GATEWAY_API_KEY
+    # / LLM_MODEL); the HACKATHON_* names are also accepted as aliases.
+    hackathon_api_base_url: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("LLM_GATEWAY_URL", "HACKATHON_API_BASE_URL"),
+    )
+    hackathon_api_key: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("LLM_GATEWAY_API_KEY", "HACKATHON_API_KEY"),
+    )
+    hackathon_model: str = Field(
+        default="global.anthropic.claude-sonnet-4-5-20250929-v1:0",
+        validation_alias=AliasChoices("LLM_MODEL", "HACKATHON_MODEL"),
+    )
+    # Request timeout (seconds) for gateway calls.
+    hackathon_timeout_seconds: float = Field(default=60.0, gt=0)
 
     # Confidence display thresholds (configurable). Confidence is stored 0-1
     # internally and shown as a qualitative band, never as a scientific

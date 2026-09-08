@@ -65,18 +65,17 @@ Current implementation:
 
 - **Frontend:** React, Vite, TypeScript, Tailwind CSS, Recharts.
 - **Backend:** FastAPI, Pydantic, SQLAlchemy, SQLite for local development.
-- **AI layer:** a provider-agnostic `AIProvider` interface. `MockAIProvider`
-  is the only fully implemented provider today.
+- **AI layer:** a provider-agnostic `AIProvider` interface with two working
+  providers: `MockAIProvider` (local, deterministic) and `HackathonAIProvider`
+  (the organiser gateway backed by AWS Bedrock Claude Sonnet 4.5).
 
 Intended target deployment (not yet implemented):
 
 - React/Vite frontend hosted on **Vercel**.
 - FastAPI backend hosted on **AWS Lightsail**.
-- Backend calls the **hackathon-provided JSON AI API**, which is backed by
-  **AWS Bedrock (Claude Sonnet 4.5)**, for classification in production.
 
-No deployment has been set up yet, and the Bedrock-backed path is not wired up
-in code. The system runs locally today using the mock provider.
+No deployment has been set up yet. Locally the system defaults to the mock
+provider; set `AI_PROVIDER=hackathon` to route analysis through the live gateway.
 
 ### AI provider abstraction
 
@@ -85,10 +84,18 @@ vendor SDK. A factory selects the concrete provider from configuration:
 
 - **MockAIProvider** — a local development and testing provider that classifies
   feedback with transparent heuristics. It requires no credentials and avoids
-  unnecessary model calls while building and testing the pipeline.
-- **Bedrock provider** — the intended production path via the hackathon AWS
-  Bedrock API. Present as an interface implementation but **stubbed**: it raises
-  a clear error until it is implemented.
+  unnecessary model calls while building and testing the pipeline. Default.
+- **HackathonAIProvider** — the production path. It calls the organiser-provided
+  gateway (an Ollama-native API at `POST /api/chat` with Bearer auth) which
+  fronts **AWS Bedrock Claude Sonnet 4.5**. It sends the framed
+  system/customer-data prompt, extracts the JSON insight contract from the
+  model's reply (handling markdown fences), coerces evidence ids, and validates
+  the result against the supplied signal ids before returning. Enable with
+  `AI_PROVIDER=hackathon` plus `LLM_GATEWAY_URL`, `LLM_GATEWAY_API_KEY`, and
+  `LLM_MODEL` in `.env` (see `.env.example`).
+
+Credentials live only in `.env` (gitignored) and are read on the backend; they
+are never logged or exposed to the frontend.
 
 ## Project structure
 
@@ -178,7 +185,7 @@ Only items marked done exist in the repository today.
 - [ ] Insight-to-campaign linkage
 
 **Phase 4 — Evaluation & Deployment**
-- [ ] Wire the Bedrock-backed hackathon AI API
+- [x] Wire the Bedrock-backed hackathon AI API (Ollama-native gateway, Claude Sonnet 4.5)
 - [ ] Deploy frontend to Vercel and backend to AWS Lightsail
 - [ ] Evaluation of insight quality
 

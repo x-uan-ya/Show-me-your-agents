@@ -23,6 +23,8 @@ def build_provider(settings: Settings) -> AIProvider:
         return HackathonAIProvider(
             api_base_url=settings.hackathon_api_base_url,
             api_key=settings.hackathon_api_key,
+            model=settings.hackathon_model,
+            timeout_seconds=settings.hackathon_timeout_seconds,
         )
     raise ValueError(f"Unknown AI provider: {provider!r}")
 
