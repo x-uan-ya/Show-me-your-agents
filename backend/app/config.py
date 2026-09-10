@@ -35,6 +35,13 @@ class Settings(BaseSettings):
     # CORS: comma-separated list of allowed origins for the frontend.
     cors_origins: str = Field(default="http://localhost:5173,http://127.0.0.1:5173")
 
+    # Serve the built frontend (Vite `dist/`) from FastAPI so the whole app runs
+    # as a single service on one origin (single-instance deployment). If the
+    # directory does not exist (e.g. during local split dev), static serving is
+    # simply skipped. Default points at ../frontend/dist relative to backend/.
+    serve_frontend: bool = Field(default=True)
+    frontend_dist_dir: str = Field(default="../frontend/dist")
+
     # AI provider selection. MOCK works with no external credentials.
     # "hackathon" targets the organiser-provided JSON API backed by AWS Bedrock
     # (Claude Sonnet 4.5) and is not implemented until their spec is shared.

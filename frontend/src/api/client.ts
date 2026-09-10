@@ -15,8 +15,10 @@ import type {
   UploadResponse,
 } from "../types";
 
-const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000/api";
+// Default to a relative "/api" so the app works when the backend serves the
+// built frontend from the same origin (single-instance deployment). In local
+// split dev, .env.development points this at the separate backend port.
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "/api";
 
 async function parseError(response: Response): Promise<string> {
   try {
