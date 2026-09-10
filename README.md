@@ -109,21 +109,10 @@ Show-me-your-agents/
 │   │   ├── routers/         # health, insight taxonomy
 │   │   ├── services/        # ingestion, insight_engine, ai, evidence
 │   │   └── utils/taxonomy.py# the 8 behavioural insight categories
-│   ├── sample_data/         # SYNTHETIC development data (not SME data)
 │   └── tests/               # pytest: health + mock provider
 └── frontend/
     └── src/                 # api client, Dashboard page, health hook
 ```
-
-## Sample data
-
-`backend/sample_data/` contains **synthetic development data only**. It is not
-SME data and references no real company, brand, or person. The CSV
-(`synthetic_customer_feedback.csv`, ~40 invented records) is used solely to
-develop and test the ingestion and analysis pipeline. It deliberately includes
-varied, ambiguous, and conflicting feedback, plus one prompt-injection-style
-record that must be treated as untrusted customer data, never as an instruction.
-See `backend/sample_data/README.md` for details.
 
 ## Running the backend
 
