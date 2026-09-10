@@ -10,43 +10,60 @@ interface Props {
 // evidence count, and a View Evidence action.
 export function InsightCard({ insight, onViewEvidence }: Props) {
   const hasEvidence = insight.evidence_count > 0;
+  const categoryLabel = CATEGORY_LABELS[insight.category] ?? insight.category;
+  const categoryMark = categoryLabel
+    .split(" ")
+    .map((word) => word[0])
+    .join("")
+    .slice(0, 2);
+  const strength =
+    insight.confidence_label === "High"
+      ? 3
+      : insight.confidence_label === "Medium"
+        ? 2
+        : 1;
 
   return (
-    <article className="flex flex-col gap-3 rounded-lg border border-slate-800 bg-slate-900 p-4">
-      <div className="flex items-start justify-between gap-3">
-        <h4 className="font-semibold text-slate-100">{insight.title}</h4>
-        <span
-          className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${confidenceBadgeClass(
-            insight.confidence_label,
-          )}`}
-          title="Qualitative confidence band, not a probability"
-        >
-          {insight.confidence_label} confidence
-        </span>
+    <article className="insight-card group">
+      <div className="insight-card-mark" aria-hidden="true">
+        {categoryMark}
       </div>
 
-      <p className="text-sm text-slate-300">{insight.summary}</p>
+      <div className="min-w-0 flex-1">
+        <span className="insight-category">{categoryLabel}</span>
+        <h3>{insight.title}</h3>
+        <p>{insight.summary}</p>
+      </div>
 
-      <div className="mt-1 flex items-center justify-between">
-        <span className="text-xs uppercase tracking-wide text-sky-300">
-          {CATEGORY_LABELS[insight.category] ?? insight.category}
-        </span>
-        <div className="flex items-center gap-3">
+      <div className="insight-card-metrics">
+        <div className="insight-confidence">
           <span
-            className={`text-xs ${hasEvidence ? "text-slate-400" : "text-amber-400"}`}
+            className={`rounded-full px-2.5 py-1 text-xs font-medium ${confidenceBadgeClass(
+              insight.confidence_label,
+            )}`}
+            title="Qualitative confidence band, not a probability"
           >
-            {hasEvidence
-              ? `${insight.evidence_count} evidence item${insight.evidence_count === 1 ? "" : "s"}`
-              : "No evidence"}
+            {insight.confidence_label} confidence
           </span>
-          <button
-            type="button"
-            onClick={() => onViewEvidence(insight)}
-            className="rounded border border-slate-600 px-3 py-1 text-xs font-medium text-slate-100 hover:bg-slate-800"
-          >
-            View Evidence
-          </button>
+          <span className="confidence-rail" aria-hidden="true">
+            {[1, 2, 3].map((segment) => (
+              <i key={segment} className={segment <= strength ? "is-active" : ""} />
+            ))}
+          </span>
         </div>
+        <span className={`evidence-count ${hasEvidence ? "" : "is-empty"}`}>
+          <strong>{insight.evidence_count}</strong>
+          {hasEvidence
+            ? ` evidence item${insight.evidence_count === 1 ? "" : "s"}`
+            : " no evidence"}
+        </span>
+        <button
+          type="button"
+          onClick={() => onViewEvidence(insight)}
+          className="evidence-button"
+        >
+          View Evidence <span aria-hidden>→</span>
+        </button>
       </div>
     </article>
   );

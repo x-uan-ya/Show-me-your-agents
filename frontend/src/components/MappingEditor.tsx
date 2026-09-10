@@ -22,22 +22,24 @@ export function MappingEditor({ columns, mapping, onChange }: Props) {
   };
 
   return (
-    <div className="space-y-3">
+    <div className="grid gap-3 sm:grid-cols-2">
       {CANONICAL_FIELDS.map((field) => {
         const required = REQUIRED.includes(field);
         return (
-          <div key={field} className="flex items-center gap-3">
-            <label className="w-32 text-sm text-slate-200" htmlFor={`map-${field}`}>
-              {field}
+          <div key={field} className="rounded-xl border border-slate-800 bg-slate-950/55 p-3">
+            <label className="block text-xs font-medium uppercase tracking-wide text-slate-400" htmlFor={`map-${field}`}>
+              {field.replace(/_/g, " ")}
               {required && <span className="text-red-400"> *</span>}
             </label>
             <select
               id={`map-${field}`}
-              className="flex-1 rounded border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100"
+              required={required}
+              aria-required={required}
+              className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20"
               value={mapping[field] ?? ""}
               onChange={(e) => setField(field, e.target.value)}
             >
-              <option value="">— not mapped —</option>
+              <option value="">Not mapped</option>
               {columns.map((col) => (
                 <option key={col} value={col}>
                   {col}

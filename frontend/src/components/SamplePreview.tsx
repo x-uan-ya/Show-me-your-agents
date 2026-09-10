@@ -11,12 +11,20 @@ export function SamplePreview({ columns, rows }: Props) {
   }
 
   return (
-    <div className="overflow-x-auto rounded border border-slate-800">
+    <div
+      className="overflow-x-auto rounded-xl border border-slate-800"
+      role="region"
+      aria-label="Uploaded CSV sample rows"
+      tabIndex={0}
+    >
       <table className="min-w-full text-left text-sm">
-        <thead className="bg-slate-800 text-slate-200">
+        <caption className="sr-only">
+          Preview of the first rows detected in the uploaded CSV file
+        </caption>
+        <thead className="bg-slate-950 text-slate-300">
           <tr>
             {columns.map((col) => (
-              <th key={col} className="px-3 py-2 font-medium">
+              <th key={col} scope="col" className="px-3 py-2 font-medium">
                 {col}
               </th>
             ))}
@@ -26,7 +34,7 @@ export function SamplePreview({ columns, rows }: Props) {
           {rows.map((row, i) => (
             <tr key={i} className="text-slate-300">
               {columns.map((col) => (
-                <td key={col} className="max-w-xs truncate px-3 py-2">
+                <td key={col} className="max-w-xs whitespace-normal break-words px-3 py-2.5">
                   {row[col] ?? ""}
                 </td>
               ))}

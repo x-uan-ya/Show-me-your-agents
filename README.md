@@ -1,48 +1,75 @@
-# Customer Insight Intelligence
+# NUS Show Me Your Agent — Evidence-led Campaign Planning
 
-A component of our **NUS-ISS "Show Me Your Agents" Hackathon** solution.
+An agentic marketing campaign planning prototype for agencies serving SMEs.
 
-## Vision
+The product starts with customer evidence—not a blank prompt—and follows one
+traceable path:
 
-Marketing agencies manage many SME clients at once, each with different
-objectives, audiences, channels and schedules. Producing campaign ideas,
-content calendars and publishing schedules for all of them is heavily manual
-and slow. The broader product we are building is a **Marketing Campaign
-Planning** assistant that reduces that manual effort.
+> **Evidence → Insight → Strategy → Campaign**
 
-The problem is that campaigns are often built on assumptions about what
-customers want. Our differentiator is to add a **Customer Insight
-Intelligence** stage *before* campaign planning, so that campaigns are grounded
-in evidence about what customers actually value, hesitate over, or ask for.
+The current milestone focuses on proving one SME workflow end to end. Backend
+campaign generation, persistence and publishing are not represented as finished.
 
-This repository currently contains the Customer Insight Intelligence stage.
+## Current product status
 
-## Beyond Sentiment Analysis
+| Area | Current state | Notes |
+| --- | --- | --- |
+| Client onboarding | Working | Select or quick-create a client through the existing API. |
+| Marketing brief | Frontend prototype | Objective, audience, current message and channels are saved per client in browser storage. |
+| Customer feedback | Working | Upload CSV, inspect columns and rows, edit the field mapping, then confirm import. |
+| Customer insight | Working | Run analysis on a ready dataset and browse eight behavioural categories. |
+| Evidence traceability | Working | Open supporting feedback and evidence-quality limitations for each insight. |
+| Trial vs retention | Working, secondary | Compares trial, retention and non-repeat drivers for the selected client. |
+| Campaign recommendation | Frontend prototype | Produces a deterministic draft from the current brief and latest in-memory insight result. |
+| Content calendar / schedule | Frontend prototype | Shows a reviewable seven-day, evidence-linked schedule. It is not persisted or published. |
+| Human approval | UI simulation | Approve/revise state is local UI state only. |
+| Customer-message gap | Not implemented | Planned after the P0 workflow is stable. |
+| Campaign feedback loop | Not implemented | No results ingestion, learning loop or trend detection yet. |
 
-Sentiment analysis tells you whether feedback is positive or negative. That is
-not enough to plan a campaign. We care about the *why* behind customer
-behaviour, and we classify feedback into eight behavioural categories:
+“Frontend prototype” is intentionally visible in the interface wherever a screen
+does not yet have backend support. This keeps the demo honest.
 
-| Category | Question it answers |
+## Demo flow
+
+1. Open **Import signals** and choose or create one SME client.
+2. Enter its business objective, target audience, current message and channels.
+3. Upload a CSV and review the suggested field mapping and sample rows.
+4. Confirm the import, then select **Analyse this dataset**.
+5. Run analysis and open **View Evidence** on an insight.
+6. Select **Build campaign plan** to generate the frontend campaign draft.
+7. Review the recommendation, seven-day schedule and simulated approval state.
+
+Keep this sequence in one browser session: the selected client and brief persist,
+but the latest analysis result passed to Campaign Plan does not persist after a
+full page refresh.
+
+## What the insight layer does
+
+Sentiment alone is not enough to plan a campaign. The current analysis groups
+customer feedback into eight behavioural questions:
+
+| Category | Question |
 | --- | --- |
 | Purchase Driver | Why did someone buy? |
-| Trial Driver | Why did someone try only once? |
-| Retention Driver | Why did someone return? |
-| Non-Repeat Driver | Why did someone not return? |
-| Pain Point | What problem is repeatedly appearing? |
-| Unmet Need | What do customers want that may be unaddressed? |
-| Customer Anxiety | What worries block customer confidence? |
-| Emerging Demand | What new expectation or trend is appearing? |
+| Trial Driver | What encouraged initial experimentation? |
+| Retention Driver | What encouraged continued interest? |
+| Non-Repeat Driver | What discouraged repeat interest? |
+| Pain Point | Which problem keeps recurring? |
+| Unmet Need | What appears to be unaddressed? |
+| Customer Anxiety | What concern blocks confidence? |
+| Emerging Demand | Which new expectation is appearing? |
 
-Every insight is tied to a supporting excerpt from the source feedback, so a
-claim can always be traced back to evidence.
+Insights are evidence-backed hypotheses, not proof of causation. Confidence is
+a qualitative band, not a probability.
 
-## Trial vs Retention
+## Frontend architecture
 
-High trial activity is easy to mistake for strong demand. A spike in first-time
-purchases can be driven by a discount, a one-off campaign, or curiosity, and
-none of those guarantee that customers come back. Long-term demand shows up in
-retention, not trials.
+- React 18 + TypeScript
+- Vite 8
+- Tailwind CSS 3
+- Hash-based navigation with shared client context
+- Abortable API requests with explicit timeout and error states
+- Vitest + Testing Library
 
 Separating **Trial Drivers** from **Retention Drivers** lets us ask whether the
 reasons people try something are the same reasons they stay. When they diverge,
@@ -99,84 +126,113 @@ are never logged or exposed to the frontend.
 
 ## Project structure
 
+Key frontend files:
+
+```text
+frontend/src/
+├── App.tsx                    # navigation and shared client/brief context
+├── api/client.ts              # typed, abortable backend requests
+├── pages/
+│   ├── Dashboard.tsx          # product overview and P0 workflow
+│   ├── ImportData.tsx         # SME brief and CSV ingestion
+│   ├── Insights.tsx           # analysis, filters and evidence access
+│   ├── CampaignPlan.tsx       # clearly labelled frontend-only plan prototype
+│   └── TrialVsRetention.tsx   # secondary behavioural comparison
+├── components/                # selectors, cards, filters and evidence drawer
+├── types/index.ts             # shared frontend domain types
+└── utils/navigation.ts        # URL hash parsing
 ```
-Show-me-your-agents/
-├── backend/
-│   ├── app/
-│   │   ├── main.py          # FastAPI app, CORS, routers
-│   │   ├── config.py        # settings (AI provider, DB, CORS)
-│   │   ├── models/          # FeedbackItem, Insight
-│   │   ├── routers/         # health, insight taxonomy
-│   │   ├── services/        # ingestion, insight_engine, ai, evidence
-│   │   └── utils/taxonomy.py# the 8 behavioural insight categories
-│   └── tests/               # pytest: health + mock provider
-└── frontend/
-    └── src/                 # api client, Dashboard page, health hook
-```
 
-## Running the backend
+The backend remains FastAPI + SQLAlchemy + SQLite for local development, using
+a mock AI provider by default. This frontend pass does not change backend code.
 
-Requires Python 3.11 or newer.
+## Run locally
 
-```powershell
+Prerequisites:
+
+- Node.js 20.19+ or 22.12+ (required by Vite 8)
+- Python 3.11+ for the existing backend
+
+Start the backend:
+
+```bash
 cd backend
 python -m venv .venv
-.\.venv\Scripts\Activate.ps1
+source .venv/bin/activate
 pip install -r requirements.txt
-copy .env.example .env        # optional; defaults work with the mock provider
+cp .env.example .env  # optional; mock-provider defaults work locally
 uvicorn app.main:app --reload --port 8000
 ```
 
-- API docs: http://localhost:8000/docs
-- Health check: http://localhost:8000/api/health returns `{"status":"ok"}`
+On Windows PowerShell, activate with `.\.venv\Scripts\Activate.ps1` and use
+`copy .env.example .env`.
 
-## Running the frontend
+Start the frontend in another terminal:
 
-Requires Node.js 18 or newer.
-
-```powershell
+```bash
 cd frontend
-npm install
-copy .env.example .env        # optional; defaults to http://localhost:8000/api
+npm ci
+cp .env.example .env  # optional; defaults to http://localhost:8000/api
 npm run dev
 ```
 
-Open http://localhost:5173. With the backend running you should see
-**"Customer Insight Intelligence"** and **"System Connected"**.
+Open <http://localhost:5173>. API documentation is available at
+<http://localhost:8000/docs>.
 
-## Running tests
+## Frontend checks
 
-```powershell
-cd backend
-.\.venv\Scripts\Activate.ps1
-pytest
+```bash
+cd frontend
+npm run lint     # strict TypeScript checks
+npm test         # Vitest component and navigation tests
+npm run build    # production build
+npm run preview  # preview the production output
 ```
 
-## Development roadmap
+## Sample data
 
-Only items marked done exist in the repository today.
+`backend/sample_data/` contains synthetic development data only. It references
+no real company, brand or person. Customer content is treated as untrusted data;
+feedback text must never be interpreted as a system instruction.
 
-**Phase 1 — Customer Intelligence**
-- [x] Provider-agnostic `AIProvider` interface with a working mock provider
-- [x] Eight behavioural insight categories with evidence grounding
-- [x] Feedback and insight data models, ingestion and insight-engine services
-- [x] Health endpoint and taxonomy endpoint
-- [x] Frontend dashboard that confirms connectivity and shows the taxonomy
-- [ ] Trial vs Retention comparison logic
-- [ ] Customer-Message Gap Detection
+## Proposal alignment and next work
 
-**Phase 2 — SME Integration**
-- [ ] Ingest real SME customer feedback once a dataset is confirmed
-- [ ] Per-client data separation
+### P0 — complete the one-SME workflow
 
-**Phase 3 — Campaign Intelligence**
-- [ ] Campaign idea, content calendar and schedule generation
-- [ ] Insight-to-campaign linkage
+- [x] Client context and onboarding UI
+- [x] Objective, audience and channel brief UI
+- [x] CSV feedback import and mapping review
+- [x] Evidence-backed customer insights
+- [x] Evidence-to-campaign frontend handoff
+- [x] Campaign recommendation, calendar and schedule UI prototype
+- [ ] Persist the marketing brief and campaign entities on the backend
+- [ ] Replace deterministic frontend drafting with an evidence-grounded campaign API
+- [ ] Persist review/approval state and scheduling decisions
 
-**Phase 4 — Evaluation & Deployment**
-- [x] Wire the Bedrock-backed hackathon AI API (Ollama-native gateway, Claude Sonnet 4.5)
-- [ ] Deploy frontend to Vercel and backend to AWS Lightsail
-- [ ] Evaluation of insight quality
+### P1 — intelligence and coordination
+
+- [ ] Customer-message gap analysis
+- [ ] Multi-user agency workflow and authentication
+- [ ] Stronger client workspace separation in the UI
+- [ ] Campaign coordination and durable approval history
+
+### P2 — closed learning loop
+
+- [ ] Campaign result ingestion and simulated performance
+- [ ] Results-to-new-insight feedback loop
+- [ ] Trend and conflict detection
+- [ ] Production AI provider evaluation and deployment
+
+Do not treat P1 or P2 as a substitute for stabilising the P0 workflow.
+
+## Safety and limitations
+
+- Every insight should remain traceable to supporting customer evidence.
+- Qualitative feedback cannot establish causation, market size or guaranteed outcomes.
+- Small or self-selected samples may not represent the whole customer base.
+- AI credentials stay on the backend; no provider key belongs in the frontend.
+- Publishing and other high-impact actions require real human approval before a production release.
+- The current prototype has no production authentication or deployment configuration.
 
 ## Security principles
 

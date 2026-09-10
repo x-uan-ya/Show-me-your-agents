@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-import { api } from "../api/client";
+import { api, isAbortError } from "../api/client";
 import {
   EVIDENCE_FLAG_LABELS,
   type EvidenceQuality,
@@ -30,31 +30,30 @@ export function EvidenceQualityPanel({ clientId, insightId }: Props) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    let cancelled = false;
+    const controller = new AbortController();
     setLoading(true);
     setError(null);
+    setQuality(null);
     api
-      .evidenceQuality(clientId, insightId)
+      .evidenceQuality(clientId, insightId, controller.signal)
       .then((q) => {
-        if (!cancelled) setQuality(q);
+        if (!controller.signal.aborted) setQuality(q);
       })
       .catch((e) => {
-        if (!cancelled) setError((e as Error).message);
+        if (!isAbortError(e)) setError((e as Error).message);
       })
       .finally(() => {
-        if (!cancelled) setLoading(false);
+        if (!controller.signal.aborted) setLoading(false);
       });
-    return () => {
-      cancelled = true;
-    };
+    return () => controller.abort();
   }, [clientId, insightId]);
 
   if (loading) {
-    return <p className="text-sm text-slate-400">Assessing evidence quality...</p>;
+    return <p role="status" className="text-sm text-slate-400">Assessing evidence quality...</p>;
   }
   if (error || !quality) {
     return (
-      <p className="text-sm text-red-300">
+      <p role="alert" className="text-sm text-red-300">
         Could not load evidence quality{error ? `: ${error}` : ""}.
       </p>
     );

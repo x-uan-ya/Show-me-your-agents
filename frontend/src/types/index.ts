@@ -14,6 +14,27 @@ export interface InsightTypeInfo {
 
 export type ConnectionState = "checking" | "connected" | "error";
 
+export type AppView =
+  | "dashboard"
+  | "import"
+  | "insights"
+  | "campaign-plan"
+  | "trial-retention";
+
+export interface MarketingBrief {
+  objective: string;
+  target_audience: string;
+  channels: string[];
+  current_message: string;
+}
+
+export const EMPTY_MARKETING_BRIEF: MarketingBrief = {
+  objective: "",
+  target_audience: "",
+  channels: [],
+  current_message: "",
+};
+
 export interface Client {
   id: number;
   name: string;

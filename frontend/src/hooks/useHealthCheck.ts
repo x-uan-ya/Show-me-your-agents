@@ -1,26 +1,32 @@
-// Hook that polls the backend health endpoint once on mount and exposes the
-// connection state for the UI.
-
 import { useEffect, useState } from "react";
 
-import { api } from "../api/client";
+import { api, isAbortError } from "../api/client";
 import type { ConnectionState } from "../types";
 
 export function useHealthCheck(): ConnectionState {
   const [state, setState] = useState<ConnectionState>("checking");
 
   useEffect(() => {
-    let cancelled = false;
-    api
-      .health()
-      .then((res) => {
-        if (!cancelled) setState(res.status === "ok" ? "connected" : "error");
-      })
-      .catch(() => {
-        if (!cancelled) setState("error");
-      });
+    let controller: AbortController | null = null;
+
+    const check = async () => {
+      controller?.abort();
+      controller = new AbortController();
+      try {
+        const response = await api.health(controller.signal);
+        if (!controller.signal.aborted) {
+          setState(response.status === "ok" ? "connected" : "error");
+        }
+      } catch (error) {
+        if (!isAbortError(error)) setState("error");
+      }
+    };
+
+    void check();
+    const interval = window.setInterval(() => void check(), 30_000);
     return () => {
-      cancelled = true;
+      controller?.abort();
+      window.clearInterval(interval);
     };
   }, []);
 

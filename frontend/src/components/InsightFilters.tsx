@@ -27,10 +27,10 @@ export function InsightFilters({ filters, onChange, sources, products }: Props) 
 
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-      <label className="text-xs text-slate-300">
+      <label className="filter-control">
         Category
         <select
-          className="mt-1 w-full rounded border border-slate-700 bg-slate-900 px-2 py-1.5 text-sm text-slate-100"
+          className="mt-2 w-full rounded-xl border px-3 py-2.5 text-sm"
           value={filters.category}
           onChange={(e) =>
             set({ category: e.target.value as InsightCategory | "" })
@@ -45,10 +45,10 @@ export function InsightFilters({ filters, onChange, sources, products }: Props) 
         </select>
       </label>
 
-      <label className="text-xs text-slate-300">
+      <label className="filter-control">
         Confidence
         <select
-          className="mt-1 w-full rounded border border-slate-700 bg-slate-900 px-2 py-1.5 text-sm text-slate-100"
+          className="mt-2 w-full rounded-xl border px-3 py-2.5 text-sm"
           value={filters.confidence}
           onChange={(e) =>
             set({ confidence: e.target.value as ConfidenceLabel | "" })
@@ -61,10 +61,10 @@ export function InsightFilters({ filters, onChange, sources, products }: Props) 
         </select>
       </label>
 
-      <label className="text-xs text-slate-300">
+      <label className="filter-control">
         Source
         <select
-          className="mt-1 w-full rounded border border-slate-700 bg-slate-900 px-2 py-1.5 text-sm text-slate-100"
+          className="mt-2 w-full rounded-xl border px-3 py-2.5 text-sm"
           value={filters.source}
           onChange={(e) => set({ source: e.target.value })}
         >
@@ -77,10 +77,10 @@ export function InsightFilters({ filters, onChange, sources, products }: Props) 
         </select>
       </label>
 
-      <label className="text-xs text-slate-300">
+      <label className="filter-control">
         Product
         <select
-          className="mt-1 w-full rounded border border-slate-700 bg-slate-900 px-2 py-1.5 text-sm text-slate-100"
+          className="mt-2 w-full rounded-xl border px-3 py-2.5 text-sm"
           value={filters.product}
           onChange={(e) => set({ product: e.target.value })}
         >
