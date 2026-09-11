@@ -150,8 +150,42 @@ a mock AI provider by default. This frontend pass does not change backend code.
 
 Prerequisites:
 
-- Node.js 20.19+ or 22.12+ (required by Vite 8)
-- Python 3.11+ for the existing backend
+- Node.js 20.19+ or 22.12+ (required by Vite 7)
+- Python 3.11+ for the backend
+
+### Run both ends with one command (recommended)
+
+From the **project root**, a single command starts the backend (uvicorn) and
+the frontend (Vite) together, with output prefixed `[backend]` / `[frontend]`.
+Press Ctrl+C to stop both.
+
+```bash
+npm run dev
+```
+
+One-time setup on a fresh clone (Node cannot install the Python dependencies,
+so the backend venv is prepared once):
+
+```bash
+# 1. backend virtual environment + dependencies
+cd backend
+python -m venv .venv
+# macOS/Linux: source .venv/bin/activate   |   Windows: .\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+cd ..
+
+# 2. frontend + root dev-runner dependencies
+npm install --prefix frontend
+npm install            # installs the root "concurrently" runner
+```
+
+Then from the root: `npm run dev`. Backend is on <http://localhost:8000>,
+frontend on <http://localhost:5173>, API docs at <http://localhost:8000/docs>.
+
+You can also run either side alone: `npm run dev:backend` or
+`npm run dev:frontend`.
+
+### Or run each side manually
 
 Start the backend:
 
@@ -184,8 +218,7 @@ Open <http://localhost:5173>. API documentation is available at
 ```bash
 cd frontend
 npm run lint     # strict TypeScript checks
-npm test         # Vitest component and navigation tests
-npm run build    # production build
+npm run build    # production build (also type-checks)
 npm run preview  # preview the production output
 ```
 
