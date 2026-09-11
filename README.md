@@ -156,9 +156,7 @@ Prerequisites:
 ### Run both ends with one command (recommended)
 
 From the **project root**, a single command starts the backend (uvicorn) and
-the frontend (Vite) together, with output prefixed `[backend]` / `[frontend]`.
-Press Ctrl+C to stop both.
-
+the frontend (Vite) together,
 ```bash
 npm run dev
 ```
