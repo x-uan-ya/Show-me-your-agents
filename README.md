@@ -220,11 +220,52 @@ npm run build    # production build (also type-checks)
 npm run preview  # preview the production output
 ```
 
-## Sample data
+## Data Sources & Licensing
 
-`backend/sample_data/` contains synthetic development data only. It references
-no real company, brand or person. Customer content is treated as untrusted data;
-feedback text must never be interpreted as a system instruction.
+The platform uses **two distinct kinds of evidence** that are never mixed:
+
+- **Customer feedback evidence** — the supplied customer-feedback records. The
+  Customer Insight Intelligence engine uses these to generate individual
+  insights, and links each insight to the specific feedback records that
+  support it.
+- **Singapore market context (Dataset 2)** — public/research datasets used only
+  to understand the broader market and to design realistic client/scenario
+  context. They are **not** individual customer feedback and are **not** used to
+  claim that a particular customer preference is representative of Singapore
+  consumers.
+
+Any development/demo customer feedback is synthetic and must never be presented
+as real-world evidence.
+
+### Dataset 2 — Singapore market context
+
+Purpose: Singapore-specific F&B market, channel, demographic and
+customer-satisfaction research context for scenario design.
+
+| Dataset | Provider | Licence | Use | Source |
+| --- | --- | --- | --- | --- |
+| Licensed Food Establishments | Singapore Food Agency / data.gov.sg | Singapore Open Data Licence | F&B business landscape and multi-client scenario design | [Link](https://data.gov.sg/datasets/d_a9e81ab29216b10b69e23e7957b680b9/view) |
+| F&B Services Index - Chained Volume Terms | Singapore Department of Statistics / data.gov.sg | Singapore Open Data Licence | F&B industry activity and trend context | [Link](https://data.gov.sg/datasets/d_29d0626a2259ac6c3695e470451ab4d2/view) |
+| F&B Services Index - Current Prices | Singapore Department of Statistics / data.gov.sg | Singapore Open Data Licence | Nominal F&B sales/activity context | [Link](https://data.gov.sg/datasets/d_f2a6e31b801445350bbeda1c895d455e/view) |
+| Online Food & Beverage Sales Proportion | Singapore Department of Statistics / data.gov.sg | Singapore Open Data Licence | Digital-channel context for Singapore F&B | [Link](https://data.gov.sg/datasets/d_1ee399b195ab799a34588772ccc1ebfa/view) |
+| Singapore Population by Planning Area, Age Group and Sex | Singapore Department of Statistics / data.gov.sg | Singapore Open Data Licence | Broad demographic context for scenario and audience assumptions | [Link](https://data.gov.sg/datasets/d_d95ae740c0f8961a0b10435836660ce0/view) |
+| CSISG 2022 Full Year Data | Singapore Management University | CC BY-NC 4.0 | Customer-satisfaction research and methodology context | [Link](https://researchdata.smu.edu.sg/articles/dataset/CSISG_2022_Full_Year_data_Q1_-_Retail_Infocomm_Q2_Land_Transport_Q3_F_B_and_Attractions_Q4_Finance_and_Insurance/24420823) |
+
+Licences are shown exactly as provided. **CC BY-NC 4.0 is a non-commercial
+licence and does not permit unrestricted commercial reuse.** Always check the
+original source for the governing terms before any reuse.
+
+### Methodology note
+
+Customer insights are generated from the supplied customer-feedback records and
+linked to supporting evidence from those records. Singapore market datasets
+provide contextual information only and should not be interpreted as proof of
+individual customer preferences.
+
+In the app, this is surfaced on the **Sources & methodology** page
+(`frontend/src/pages/SourcesMethodology.tsx`), driven by a single citation
+config (`frontend/src/data/sources.ts`) and a reusable
+`<DataSourceCitation sourceId="..." />` component.
 
 ## Proposal alignment and next work
 

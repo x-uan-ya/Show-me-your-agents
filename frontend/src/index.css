@@ -1305,3 +1305,98 @@
     transform: none;
   }
 }
+
+/* Data source citations & the Sources & methodology page. */
+.data-source-citation {
+  display: inline;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #66c9ff;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.data-source-citation:hover,
+.data-source-citation:focus {
+  text-decoration: underline;
+  color: #a6dcff;
+}
+
+.data-source-list {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1.25rem;
+}
+.data-source-item {
+  border: 1px solid rgba(65, 105, 146, 0.55);
+  border-radius: 0.9rem;
+  background: rgba(4, 15, 31, 0.55);
+  padding: 1rem 1.1rem;
+}
+.data-source-item-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.data-source-item-head h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #eef6ff;
+  margin: 0;
+}
+.data-source-usage {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: #8af2df;
+  border: 1px solid rgba(45, 212, 191, 0.35);
+  background: rgba(45, 212, 191, 0.1);
+  border-radius: 999px;
+  padding: 0.15rem 0.55rem;
+}
+.data-source-purpose {
+  margin-top: 0.5rem;
+  font-size: 0.875rem;
+  line-height: 1.5rem;
+  color: #9fb2cc;
+}
+.data-source-meta {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 0.85rem;
+}
+@media (min-width: 640px) {
+  .data-source-meta {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+.data-source-meta dt {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: #66c9ff;
+}
+.data-source-meta dd {
+  margin: 0.2rem 0 0;
+  font-size: 0.85rem;
+  color: #d6e2f2;
+}
+.data-source-meta a {
+  color: #66c9ff;
+  text-decoration: none;
+}
+.data-source-meta a:hover,
+.data-source-meta a:focus {
+  text-decoration: underline;
+}
+.data-source-license-note {
+  margin-top: 1.25rem;
+  font-size: 0.8rem;
+  line-height: 1.35rem;
+  color: #b1c1d5;
+  border-top: 1px solid rgba(40, 82, 124, 0.48);
+  padding-top: 1rem;
+}

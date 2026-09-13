@@ -20,7 +20,8 @@ export type AppView =
   | "insights"
   | "campaign-plan"
   | "trial-retention"
-  | "campaign-calendar";
+  | "campaign-calendar"
+  | "sources";
 
 export interface MarketingBrief {
   objective: string;

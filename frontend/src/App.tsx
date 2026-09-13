@@ -5,6 +5,7 @@ import { CampaignPlan } from "./pages/CampaignPlan";
 import { CampaignCalendar } from "./pages/CampaignCalendar";
 import { ImportData } from "./pages/ImportData";
 import { Insights } from "./pages/Insights";
+import { SourcesMethodology } from "./pages/SourcesMethodology";
 import { TrialVsRetention } from "./pages/TrialVsRetention";
 import {
   EMPTY_MARKETING_BRIEF,
@@ -29,6 +30,7 @@ const TABS: { id: AppView; label: string; shortLabel: string }[] = [
     shortLabel: "Trial vs retention",
   },
   { id: "campaign-calendar", label: "Campaign calendar", shortLabel: "Calendar" },
+  { id: "sources", label: "Sources & methodology", shortLabel: "Sources" },
 ];
 
 const NAV_ICON_PATHS: Record<AppView, string> = {
@@ -38,6 +40,7 @@ const NAV_ICON_PATHS: Record<AppView, string> = {
   "campaign-plan": "m4 12 16-8-6 16-3-6-7-2Zm7 2 9-10",
   "trial-retention": "M7 7h10m0 0-3-3m3 3-3 3M17 17H7m0 0 3 3m-3-3 3-3",
   "campaign-calendar": "M5 4h14v16H5zM8 2v4m8-4v4M5 9h14M8 13h3m2 0h3M8 17h3",
+  sources: "M6 3h9l4 4v14H6zM14 3v5h5M9 13h6M9 17h6M9 9h2",
 };
 
 function NavIcon({ view }: { view: AppView }) {
@@ -344,6 +347,7 @@ export default function App() {
           {view === "campaign-calendar" && (
             <CampaignCalendar onNavigate={navigate} />
           )}
+          {view === "sources" && <SourcesMethodology />}
         </div>
       </div>
     </div>
