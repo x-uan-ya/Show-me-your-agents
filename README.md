@@ -237,6 +237,25 @@ The platform uses **two distinct kinds of evidence** that are never mixed:
 Any development/demo customer feedback is synthetic and must never be presented
 as real-world evidence.
 
+### Dataset 1 — Customer feedback input
+
+Dataset 1 contains 300 synthetic customer-feedback records representing a fictional Singapore café SME in the F&B sector.
+
+File:
+
+`backend/data/inference/dataset1_singapore_fnb_customer_feedback.csv`
+
+It is used as clean inference input for customer-insight analysis and contains exactly six fields:
+
+- `external_id`
+- `date`
+- `feedback_text`
+- `rating`
+- `product`
+- `channel`
+
+It contains no category labels, theme hints, or ground-truth evaluation annotations. The CSV is stored in the repository as a reproducible demo input. To analyse it in the current prototype, select a client and upload the file through the application's **Import signals** workflow.
+
 ### Dataset 2 — Singapore market context
 
 Purpose: Singapore-specific F&B market, channel, demographic and
