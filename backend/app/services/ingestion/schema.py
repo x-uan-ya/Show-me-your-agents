@@ -31,6 +31,7 @@ CANONICAL_FIELDS: tuple[str, ...] = REQUIRED_FIELDS + OPTIONAL_FIELDS
 SYNONYMS: dict[str, tuple[str, ...]] = {
     "text": (
         "text",
+        "feedback_text",
         "feedback",
         "review",
         "review_text",
