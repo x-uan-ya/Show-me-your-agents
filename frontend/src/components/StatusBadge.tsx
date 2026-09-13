@@ -1,0 +1,29 @@
+import type { ConnectionState } from "../types";
+import { connectionLabel } from "../utils/format";
+
+interface Props {
+  state: ConnectionState;
+}
+
+// Displays the backend connection state with a colour-coded indicator.
+export function StatusBadge({ state }: Props) {
+  const color =
+    state === "connected"
+      ? "status-alert-dot status-ok-dot"
+    : state === "error"
+        ? "status-alert-dot"
+        : "bg-amber-400";
+
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className="inline-flex items-center gap-2 rounded-full border border-slate-700/80 bg-slate-900/80 px-3 py-2"
+    >
+      <span className={`h-3 w-3 rounded-full ${color}`} aria-hidden />
+      <span className="text-xs font-semibold text-slate-200">
+        {connectionLabel(state)}
+      </span>
+    </div>
+  );
+}
