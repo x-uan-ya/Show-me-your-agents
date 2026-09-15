@@ -1,0 +1,9 @@
+# Rendered Lightsail deployment spec — contains the runtime secret, never commit.
+containers.json
+
+# Node (root dev runner)
+node_modules/
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db

@@ -4,6 +4,8 @@ All lookups for owned records (datasets, signals, insights) are scoped by
 ``client_id`` so one client can never read another client's data.
 """
 
+from __future__ import annotations
+
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 

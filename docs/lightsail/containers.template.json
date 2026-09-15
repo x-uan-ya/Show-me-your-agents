@@ -1,0 +1,14 @@
+{
+  "app": {
+    "image": "IMAGE_REF_PLACEHOLDER",
+    "environment": {
+      "AI_PROVIDER": "hackathon",
+      "ENVIRONMENT": "production",
+      "LLM_GATEWAY_URL": "https://api.softwaresystems.app",
+      "LLM_MODEL": "global.anthropic.claude-sonnet-4-5-20250929-v1:0",
+      "LLM_GATEWAY_API_KEY": "SET_AT_DEPLOY_TIME",
+      "CORS_ORIGINS": "*"
+    },
+    "ports": { "8000": "HTTP" }
+  }
+}

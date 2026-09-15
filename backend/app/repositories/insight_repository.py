@@ -1,5 +1,7 @@
 """Insight repository: data-access layer for Insight."""
 
+from __future__ import annotations
+
 from collections.abc import Iterable
 
 from sqlalchemy import select
