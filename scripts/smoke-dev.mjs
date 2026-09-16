@@ -4,11 +4,17 @@ import { fileURLToPath } from "node:url";
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(scriptDir, "..");
-const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
+const npmCli = process.env.npm_execpath;
+const npmCommand = npmCli
+  ? process.execPath
+  : process.platform === "win32"
+    ? "npm.cmd"
+    : "npm";
+const npmArgs = npmCli ? [npmCli, "run", "dev"] : ["run", "dev"];
 const timeoutMs = 120_000;
 const pollIntervalMs = 500;
 
-const devProcess = spawn(npmCommand, ["run", "dev"], {
+const devProcess = spawn(npmCommand, npmArgs, {
   cwd: projectRoot,
   detached: process.platform !== "win32",
   env: { ...process.env, CI: "1" },

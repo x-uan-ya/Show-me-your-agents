@@ -75,7 +75,10 @@ run(venvPython, ["-m", "pip", "install", "-r", "requirements.txt"], {
 });
 
 console.log("[setup] Installing frontend dependencies...");
-run(process.platform === "win32" ? "npm.cmd" : "npm", ["install"], {
+const npmCli = process.env.npm_execpath;
+const npmCommand = npmCli ? process.execPath : process.platform === "win32" ? "npm.cmd" : "npm";
+const npmArgs = npmCli ? [npmCli, "install"] : ["install"];
+run(npmCommand, npmArgs, {
   cwd: frontendDir,
 });
 
