@@ -157,30 +157,26 @@ Prerequisites:
 
 ### Run both ends with one command (recommended)
 
-From the **project root**, a single command starts the backend (uvicorn) and
-the frontend (Vite) together,
+From the **project root**, a cross-platform Node launcher starts the backend
+(uvicorn) and frontend (Vite) together:
+
 ```bash
 npm run dev
 ```
 
-One-time setup on a fresh clone (Node cannot install the Python dependencies,
-so the backend venv is prepared once):
+One-time setup on a fresh clone:
 
 ```bash
-# 1. backend virtual environment + dependencies
-cd backend
-python -m venv .venv
-# macOS/Linux: source .venv/bin/activate   |   Windows: .\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-cd ..
-
-# 2. frontend + root dev-runner dependencies
-npm install --prefix frontend
-npm install            # installs the root "concurrently" runner
+npm run setup
 ```
 
-Then from the root: `npm run dev`. Backend is on <http://localhost:8000>,
-frontend on <http://localhost:5173>, API docs at <http://localhost:8000/docs>.
+The setup command detects Windows or macOS, creates the backend virtual
+environment in the correct platform-specific location, installs the Python
+requirements, and installs the frontend packages. It requires Python 3.11+
+and Node.js to already be installed.
+
+Then run `npm run dev`. Backend is on <http://localhost:8000>, frontend on
+<http://localhost:5173>, and API docs are at <http://localhost:8000/docs>.
 
 You can also run either side alone: `npm run dev:backend` or
 `npm run dev:frontend`.
