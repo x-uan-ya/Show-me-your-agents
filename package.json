@@ -8,6 +8,7 @@
     "dev:backend": "node scripts/dev.mjs backend",
     "dev:frontend": "node scripts/dev.mjs frontend",
     "setup": "node scripts/setup.mjs",
+    "test:dev": "node scripts/smoke-dev.mjs",
     "build:frontend": "cd frontend && npm run build"
   },
   "devDependencies": {

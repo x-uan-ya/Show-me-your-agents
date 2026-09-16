@@ -1,0 +1,47 @@
+name: Cross-platform dev smoke test
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/dev-smoke.yml"
+      - "package.json"
+      - "scripts/dev.mjs"
+      - "scripts/setup.mjs"
+      - "scripts/smoke-dev.mjs"
+      - "backend/requirements.txt"
+      - "frontend/package.json"
+      - "frontend/package-lock.json"
+
+permissions:
+  contents: read
+
+jobs:
+  dev-smoke:
+    name: ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install project dependencies
+        run: npm run setup
+
+      - name: Start both services
+        run: npm run test:dev
