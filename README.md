@@ -23,7 +23,7 @@ campaign generation, persistence and publishing are not represented as finished.
 | Campaign recommendation | Frontend prototype | Produces a deterministic draft from the current brief and latest in-memory insight result. |
 | Content calendar / schedule | Frontend prototype | Shows a reviewable seven-day, evidence-linked schedule. It is not persisted or published. |
 | Human approval | UI simulation | Approve/revise state is local UI state only. |
-| Customer-message gap | Not implemented | Planned after the P0 workflow is stable. |
+| Customer-message gap | Input contract ready; detection not implemented | Dataset 3 and its validated backend loader are ready for the planned analysis stage. |
 | Campaign feedback loop | Not implemented | No results ingestion, learning loop or trend detection yet. |
 
 “Frontend prototype” is intentionally visible in the interface wherever a screen
@@ -83,8 +83,10 @@ customers actually *value or worry about*. Where the two diverge, the marketing
 message and the customer reality are misaligned, which is a strong signal for
 where a campaign should focus.
 
-This stage is not implemented yet. It is described here as intended direction,
-not as a current feature.
+Dataset 3 supplies the campaign-side inputs for this comparison through a
+validated backend loader. Gap scoring, persistence and an API endpoint are not
+implemented yet, so this remains intended direction rather than a current
+product feature.
 
 ## System architecture
 
@@ -222,7 +224,7 @@ npm run preview  # preview the production output
 
 ## Data Sources & Licensing
 
-The platform uses **two distinct kinds of evidence** that are never mixed:
+The repository keeps these three data roles separate:
 
 - **Customer feedback evidence** — the supplied customer-feedback records. The
   Customer Insight Intelligence engine uses these to generate individual
@@ -233,6 +235,9 @@ The platform uses **two distinct kinds of evidence** that are never mixed:
   context. They are **not** individual customer feedback and are **not** used to
   claim that a particular customer preference is representative of Singapore
   consumers.
+- **Campaign parameters (Dataset 3)** — the objective, target audience, active
+  message and channel to compare with customer evidence. These are business
+  inputs, not evidence, and never enter the CustomerSignal ingestion pipeline.
 
 Any development/demo customer feedback is synthetic and must never be presented
 as real-world evidence.
@@ -274,12 +279,39 @@ Licences are shown exactly as provided. **CC BY-NC 4.0 is a non-commercial
 licence and does not permit unrestricted commercial reuse.** Always check the
 original source for the governing terms before any reuse.
 
+### Dataset 3 — Marketing campaign parameters
+
+Dataset 3 contains 500 campaign parameter records for testing the planned
+Customer-Message Gap Detection stage.
+
+File:
+
+`backend/data/inference/dataset3_marketing_campaign_parameters.csv`
+
+Each record contains exactly five required fields:
+
+- `campaign_id` — unique campaign identifier
+- `objective` — the business outcome the campaign is intended to support
+- `target_audience` — the audience the campaign is designed to reach
+- `active_message` — the message currently presented to that audience
+- `channel` — the delivery channel for that message
+
+The backend loader at
+`backend/app/services/campaign_gap/parameters.py` validates required columns,
+non-empty values and unique campaign ids. Dataset 3 must not be uploaded through
+the current **Import signals** workflow because that endpoint is exclusively for
+customer feedback. The future gap-detection service will combine these campaign
+parameters with evidence-backed customer insights; that comparison and its API
+are not implemented yet.
+
 ### Methodology note
 
 Customer insights are generated from the supplied customer-feedback records and
 linked to supporting evidence from those records. Singapore market datasets
 provide contextual information only and should not be interpreted as proof of
-individual customer preferences.
+individual customer preferences. Campaign parameters describe the business's
+current intent and message; they are comparison inputs rather than customer
+evidence.
 
 In the app, this is surfaced on the **Sources & methodology** page
 (`frontend/src/pages/SourcesMethodology.tsx`), driven by a single citation
