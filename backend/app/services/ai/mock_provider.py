@@ -12,8 +12,14 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 from app.schemas.ai_result import AIAnalysisResult, AIInsight
+from app.schemas.campaign_gap import CampaignGapAnalysis
 from app.schemas.insight import InsightClassification
-from app.services.ai.base import AIProvider, SignalInput
+from app.services.ai.base import (
+    AIProvider,
+    CampaignGapInput,
+    CampaignInsightInput,
+    SignalInput,
+)
 from app.services.ai.validation import validate_ai_output
 from app.utils.categories import InsightCategory
 from app.utils.taxonomy import InsightType
@@ -130,3 +136,37 @@ class MockAIProvider(AIProvider):
             )
 
         return results
+
+    def analyze_campaign_gap(
+        self,
+        campaign: CampaignGapInput,
+        insights: Sequence[CampaignInsightInput],
+    ) -> CampaignGapAnalysis:
+        """Return deterministic development output for the gap workflow."""
+        selected = list(insights[:3])
+        if not selected:
+            raise ValueError("Campaign-gap analysis requires customer insights.")
+        message_words = set(campaign.active_message.lower().split())
+        matched = [
+            insight
+            for insight in selected
+            if message_words.intersection(insight.title.lower().split())
+        ]
+        return CampaignGapAnalysis(
+            alignment="partial" if matched else "misaligned",
+            summary=(
+                "Development comparison of the active message against the latest "
+                "validated customer insights."
+            ),
+            matched_customer_values=[insight.title for insight in matched[:3]],
+            message_gaps=[
+                f"The active message does not clearly address: {insight.title}"
+                for insight in selected
+                if insight not in matched
+            ][:3],
+            recommended_actions=[
+                f"Reflect the customer evidence behind insight #{insight.id}."
+                for insight in selected
+            ],
+            supporting_insight_ids=[insight.id for insight in selected],
+        )

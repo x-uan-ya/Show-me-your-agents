@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from app.schemas.ai_result import AIAnalysisResult
+from app.schemas.campaign_gap import CampaignGapAnalysis
 from app.schemas.insight import InsightClassification
 
 
@@ -26,6 +27,27 @@ class SignalInput:
     id: str
     text: str
     context: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class CampaignGapInput:
+    """Provider-agnostic Dataset 3 campaign parameters."""
+
+    campaign_id: str
+    objective: str
+    target_audience: str
+    active_message: str
+    channel: str
+
+
+@dataclass(frozen=True)
+class CampaignInsightInput:
+    """Validated customer insight supplied to campaign-gap analysis."""
+
+    id: int
+    category: str
+    title: str
+    summary: str
 
 
 class AIProvider(ABC):
@@ -60,6 +82,14 @@ class AIProvider(ABC):
         New code should prefer :meth:`analyze_signals`. Not every provider needs
         to implement this.
         """
+        raise NotImplementedError
+
+    def analyze_campaign_gap(
+        self,
+        campaign: CampaignGapInput,
+        insights: Sequence[CampaignInsightInput],
+    ) -> CampaignGapAnalysis:
+        """Compare one campaign message with validated customer insights."""
         raise NotImplementedError
 
     def health(self) -> bool:

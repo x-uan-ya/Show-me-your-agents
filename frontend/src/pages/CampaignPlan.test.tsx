@@ -1,7 +1,8 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { api } from "../api/client";
 import type { Insight } from "../types";
 import { CampaignPlan } from "./CampaignPlan";
 
@@ -22,6 +23,11 @@ const insight: Insight = {
 };
 
 describe("CampaignPlan", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    window.localStorage.clear();
+  });
+
   it("requires evidence before generating a plan", () => {
     const onNavigate = vi.fn();
     render(
@@ -43,6 +49,24 @@ describe("CampaignPlan", () => {
 
   it("generates a reviewable evidence-linked calendar", async () => {
     const user = userEvent.setup();
+    vi.spyOn(api, "analyseCampaignGapAutomatically").mockResolvedValue({
+      client_id: 1,
+      campaign: {
+        campaign_id: "CAM001",
+        objective: "Increase sign-ups",
+        target_audience: "SME owners",
+        active_message: "Work smarter",
+        channel: "LinkedIn",
+      },
+      analysis: {
+        alignment: "partial",
+        summary: "The current message reflects speed but misses customer proof.",
+        matched_customer_values: ["Fast setup matters"],
+        message_gaps: ["Customer proof is missing"],
+        recommended_actions: ["Add customer proof"],
+        supporting_insight_ids: [12],
+      },
+    });
     render(
       <CampaignPlan
         clientId={1}
@@ -57,9 +81,12 @@ describe("CampaignPlan", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: "Generate frontend draft" }));
-    expect(screen.getByText("Seven-day evidence-led sequence")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Generate campaign plan" }));
+    expect(await screen.findByText("Seven-day evidence-led sequence")).toBeInTheDocument();
+    expect(api.analyseCampaignGapAutomatically).toHaveBeenCalled();
+    expect(screen.getByText(/reflects speed/)).toBeInTheDocument();
     expect(screen.getAllByText("Insight #12").length).toBeGreaterThan(0);
     expect(screen.getByRole("button", { name: "Approve campaign" })).toBeInTheDocument();
   });
+
 });

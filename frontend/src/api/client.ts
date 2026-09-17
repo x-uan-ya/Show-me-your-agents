@@ -4,6 +4,7 @@
 import type {
   AnalyseResponse,
   BehaviourSummary,
+  CampaignGapResponse,
   Client,
   ColumnMapping,
   CustomerSignal,
@@ -183,5 +184,22 @@ export const api = {
     getJson<EvidenceQuality>(
       `/clients/${clientId}/insights/${insightId}/evidence-quality`,
       signal,
+    ),
+
+  analyseCampaignGapAutomatically: (
+    clientId: number,
+    brief: {
+      objective: string;
+      target_audience: string;
+      active_message: string;
+      channels: string[];
+    },
+    signal?: AbortSignal,
+  ) =>
+    postJson<CampaignGapResponse>(
+      `/clients/${clientId}/campaign-gap/auto`,
+      brief,
+      signal,
+      120_000,
     ),
 };

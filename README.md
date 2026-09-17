@@ -23,7 +23,7 @@ campaign generation, persistence and publishing are not represented as finished.
 | Campaign recommendation | Frontend prototype | Produces a deterministic draft from the current brief and latest in-memory insight result. |
 | Content calendar / schedule | Frontend prototype | Shows a reviewable seven-day, evidence-linked schedule. It is not persisted or published. |
 | Human approval | UI simulation | Approve/revise state is local UI state only. |
-| Customer-message gap | Input contract ready; detection not implemented | Dataset 3 and its validated backend loader are ready for the planned analysis stage. |
+| Customer-message gap | Implemented | Dataset 3 is validated, compared with the latest evidence-backed client insights through the configured AI provider, and exposed to Campaign Plan. |
 | Campaign feedback loop | Not implemented | No results ingestion, learning loop or trend detection yet. |
 
 “Frontend prototype” is intentionally visible in the interface wherever a screen
@@ -76,17 +76,19 @@ reasons people try something are the same reasons they stay. When they diverge,
 a campaign that only amplifies trial drivers can grow acquisition while doing
 nothing for retention.
 
-## Customer-Message Gap Detection (planned)
+## Customer-Message Gap Detection
 
-A planned analysis stage that compares what a business *promotes* with what its
+A dedicated analysis stage compares what a business *promotes* with what its
 customers actually *value or worry about*. Where the two diverge, the marketing
 message and the customer reality are misaligned, which is a strong signal for
 where a campaign should focus.
 
-Dataset 3 supplies the campaign-side inputs for this comparison through a
-validated backend loader. Gap scoring, persistence and an API endpoint are not
-implemented yet, so this remains intended direction rather than a current
-product feature.
+Dataset 3 supplies the campaign-side inputs through a validated backend loader.
+When the user generates a Campaign Plan, the backend matches the current brief
+to the closest Dataset 3 record and calls
+`POST /api/clients/{client_id}/campaign-gap/auto`. The configured AI provider
+compares that record with the client's latest validated insights and returns
+matched values, message gaps, recommended actions and supporting insight ids.
 
 ## System architecture
 
@@ -296,9 +298,10 @@ The backend loader at
 `backend/app/services/campaign_gap/parameters.py` validates required columns,
 non-empty values and unique campaign ids. Dataset 3 must not be uploaded through
 the current **Import signals** workflow because that endpoint is exclusively for
-customer feedback. The future gap-detection service will combine these campaign
-parameters with evidence-backed customer insights; that comparison and its API
-are not implemented yet.
+customer feedback. The campaign-gap service combines a selected campaign record
+with the client's latest evidence-backed customer insights through the configured
+AI provider. The normal Campaign Plan flow selects that record automatically from
+the current brief; Dataset 3 is not exposed as a frontend upload or selector.
 
 ### Methodology note
 
@@ -330,7 +333,7 @@ config (`frontend/src/data/sources.ts`) and a reusable
 
 ### P1 — intelligence and coordination
 
-- [ ] Customer-message gap analysis
+- [x] Customer-message gap analysis
 - [ ] Multi-user agency workflow and authentication
 - [ ] Stronger client workspace separation in the UI
 - [ ] Campaign coordination and durable approval history

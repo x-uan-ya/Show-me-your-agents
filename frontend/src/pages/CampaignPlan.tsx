@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 
+import { api } from "../api/client";
 import {
   type AppView,
+  type CampaignGapResponse,
   type Insight,
   type MarketingBrief,
 } from "../types";
@@ -33,6 +35,7 @@ function pickInsight(insights: Insight[], categories: string[]): Insight | null 
 
 export function CampaignPlan({ clientId, brief, insights, onNavigate }: Props) {
   const [generated, setGenerated] = useState(false);
+  const [gapResult, setGapResult] = useState<CampaignGapResponse | null>(null);
   const [approval, setApproval] = useState<ApprovalState>("draft");
 
   const briefReady = Boolean(
@@ -44,8 +47,28 @@ export function CampaignPlan({ clientId, brief, insights, onNavigate }: Props) {
 
   useEffect(() => {
     setGenerated(false);
+    setGapResult(null);
     setApproval("draft");
   }, [clientId, brief, insights]);
+
+  const generateCampaign = async () => {
+    if (clientId !== null) {
+      try {
+        const response = await api.analyseCampaignGapAutomatically(clientId, {
+          objective: brief.objective,
+          target_audience: brief.target_audience,
+          active_message: brief.current_message,
+          channels: brief.channels,
+        });
+        setGapResult(response);
+      } catch (error) {
+        // Keep the existing evidence-based local draft available if the
+        // external gateway is temporarily unavailable.
+        console.error("Campaign gap analysis failed", error);
+      }
+    }
+    setGenerated(true);
+  };
 
   const driver = useMemo(
     () =>
@@ -69,11 +92,16 @@ export function CampaignPlan({ clientId, brief, insights, onNavigate }: Props) {
 
   const calendar = useMemo<CalendarItem[]>(() => {
     const channels = brief.channels.length > 0 ? brief.channels : ["Primary channel"];
+    const matchedValue = gapResult?.analysis.matched_customer_values[0];
+    const messageGap = gapResult?.analysis.message_gaps[0];
+    const recommendedAction = gapResult?.analysis.recommended_actions[0];
     return [
       {
         day: "Day 1",
         channel: channels[0],
-        content: driver
+        content: matchedValue
+          ? `Customer proof: ${matchedValue}`
+          : driver
           ? `Customer proof: ${driver.title}`
           : "Lead with the strongest customer-supported value",
         purpose: "Awareness",
@@ -82,7 +110,9 @@ export function CampaignPlan({ clientId, brief, insights, onNavigate }: Props) {
       {
         day: "Day 3",
         channel: channels[1 % channels.length],
-        content: concern
+        content: messageGap
+          ? `Address the concern: ${messageGap}`
+          : concern
           ? `Address the concern: ${concern.title}`
           : "Answer the most important customer concern",
         purpose: "Trust",
@@ -91,7 +121,7 @@ export function CampaignPlan({ clientId, brief, insights, onNavigate }: Props) {
       {
         day: "Day 5",
         channel: channels[2 % channels.length],
-        content: "Show the offer in use with a clear next step",
+        content: recommendedAction ?? "Show the offer in use with a clear next step",
         purpose: "Consideration",
         evidence: driver,
       },
@@ -103,7 +133,12 @@ export function CampaignPlan({ clientId, brief, insights, onNavigate }: Props) {
         evidence: concern ?? driver,
       },
     ];
-  }, [brief.channels, concern, driver]);
+  }, [brief.channels, concern, driver, gapResult]);
+
+  const campaignObjective = gapResult?.campaign.objective ?? brief.objective;
+  const campaignAudience =
+    gapResult?.campaign.target_audience ?? brief.target_audience;
+  const strategySteps = gapResult?.analysis.recommended_actions.slice(0, 3) ?? [];
 
   return (
     <main className="page-shell">
@@ -152,19 +187,21 @@ export function CampaignPlan({ clientId, brief, insights, onNavigate }: Props) {
         {clientId !== null && briefReady && evidenceReady && !generated && (
           <section className="campaign-gate">
             <div className="campaign-gate-copy">
-              <p className="section-kicker">Get started</p>
+              <p className="section-kicker">Inputs ready</p>
               <h2 className="mt-2 text-2xl font-semibold text-white">
-                Choose an SME client first
+                Build a campaign draft from {insights.length} insight
+                {insights.length === 1 ? "" : "s"}
               </h2>
               <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-300">
-                Create or select the client whose campaign you want to plan.
+                Objective: {brief.objective}. Audience: {brief.target_audience}.
+                Channels: {brief.channels.join(", ")}.
               </p>
               <button
                 type="button"
-                onClick={() => onNavigate("import")}
+                onClick={() => void generateCampaign()}
                 className="primary-button mt-6"
               >
-                Set up client and data
+                Generate campaign plan
               </button>
               <div className="empty-step-features campaign-gate-features">
                 <span>↗</span><p><strong>Evidence-linked</strong><small>Grounded in validated customer insights</small></p>
@@ -184,11 +221,11 @@ export function CampaignPlan({ clientId, brief, insights, onNavigate }: Props) {
               <article className="surface-card recommendation-card p-5 sm:p-6 xl:col-span-2">
                 <p className="section-kicker">Campaign recommendation</p>
                 <h2 className="mt-2 text-2xl font-semibold text-white">
-                  Lead with customer-supported value, then remove the strongest
-                  barrier to action.
+                  {gapResult?.analysis.summary ??
+                    "Lead with customer-supported value, then remove the strongest barrier to action."}
                 </h2>
                 <p className="mt-3 text-base leading-7 text-slate-300">
-                  Pursue <strong>{brief.objective}</strong> for {brief.target_audience}.
+                  Pursue <strong>{campaignObjective}</strong> for {campaignAudience}.
                   {driver ? ` Anchor the message in “${driver.title}”.` : ""}
                   {concern ? ` Address “${concern.title}” directly.` : ""}
                 </p>
@@ -214,9 +251,16 @@ export function CampaignPlan({ clientId, brief, insights, onNavigate }: Props) {
                   Promise, prove, reassure
                 </h2>
                 <ol className="mt-4 space-y-3 text-sm leading-6 text-slate-300">
-                  <li><strong className="text-cyan-300">1.</strong> State the customer value in plain language.</li>
-                  <li><strong className="text-cyan-300">2.</strong> Prove it with real customer evidence.</li>
-                  <li><strong className="text-cyan-300">3.</strong> Resolve the main hesitation before the call to action.</li>
+                  {(strategySteps.length > 0
+                    ? strategySteps
+                    : [
+                        "State the customer value in plain language.",
+                        "Prove it with real customer evidence.",
+                        "Resolve the main hesitation before the call to action.",
+                      ]
+                  ).map((step, index) => (
+                    <li key={step}><strong className="text-cyan-300">{index + 1}.</strong> {step}</li>
+                  ))}
                 </ol>
               </article>
             </section>

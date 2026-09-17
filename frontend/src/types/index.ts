@@ -30,6 +30,27 @@ export interface MarketingBrief {
   current_message: string;
 }
 
+export interface CampaignParameter {
+  campaign_id: string;
+  objective: string;
+  target_audience: string;
+  active_message: string;
+  channel: string;
+}
+
+export interface CampaignGapResponse {
+  client_id: number;
+  campaign: CampaignParameter;
+  analysis: {
+    alignment: "aligned" | "partial" | "misaligned";
+    summary: string;
+    matched_customer_values: string[];
+    message_gaps: string[];
+    recommended_actions: string[];
+    supporting_insight_ids: number[];
+  };
+}
+
 export const EMPTY_MARKETING_BRIEF: MarketingBrief = {
   objective: "",
   target_audience: "",
