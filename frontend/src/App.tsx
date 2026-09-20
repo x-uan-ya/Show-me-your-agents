@@ -333,6 +333,7 @@ export default function App() {
           {view === "campaign-plan" && (
             <CampaignPlan
               clientId={clientId}
+              clientName={clientName}
               brief={brief}
               insights={latestInsights}
               onNavigate={navigate}

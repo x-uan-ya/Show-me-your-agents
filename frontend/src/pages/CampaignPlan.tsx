@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { api, isAbortError } from "../api/client";
 import { CustomerMessageGapCard } from "../components/CustomerMessageGapCard";
@@ -13,12 +13,14 @@ import {
 
 interface Props {
   clientId: number | null;
+  clientName?: string;
   brief: MarketingBrief;
   insights: Insight[];
   onNavigate: (view: AppView) => void;
 }
 
 type ApprovalState = "draft" | "approved" | "rejected";
+type GenerationStatus = "idle" | "generating" | "success" | "error";
 
 interface CalendarItem {
   day: string;
@@ -26,6 +28,130 @@ interface CalendarItem {
   content: string;
   purpose: string;
   evidence: Insight | null;
+}
+
+interface CampaignExecutionDraft {
+  name: string;
+  objective: string;
+  targetAudience: string;
+  keyInsight: Insight;
+  messageGap: string;
+  recommendedMessage: string;
+  channels: string[];
+  contentIdeas: string[];
+  cta: string;
+  kpi: string;
+}
+
+function highestRelevance(insight: Insight): number {
+  return insight.evidence.reduce(
+    (highest, item) => Math.max(highest, item.relevance_score ?? 0),
+    0,
+  );
+}
+
+/**
+ * Prefer evidence-backed insights, then follow the backend's confidence-first
+ * ordering. The remaining evidence metadata provides deterministic tie-breaks
+ * without relying on provider response order or an opaque composite score.
+ */
+function rankInsights(insights: Insight[]): Insight[] {
+  return [...insights].sort(
+    (left, right) =>
+      Number(right.evidence_count > 0) - Number(left.evidence_count > 0) ||
+      right.confidence - left.confidence ||
+      right.evidence_count - left.evidence_count ||
+      highestRelevance(right) - highestRelevance(left) ||
+      left.id - right.id,
+  );
+}
+
+function campaignCta(objective: string): string {
+  const normalised = objective.toLowerCase();
+  if (normalised.includes("sign-up") || normalised.includes("signup")) {
+    return "Sign up today";
+  }
+  if (normalised.includes("trial") || normalised.includes("try")) {
+    return "Try it today";
+  }
+  if (normalised.includes("order") || normalised.includes("sales")) {
+    return "Order now";
+  }
+  if (normalised.includes("traffic") || normalised.includes("visit")) {
+    return "Plan your visit";
+  }
+  if (normalised.includes("retention") || normalised.includes("repeat")) {
+    return "Come back and experience it again";
+  }
+  return "Take the next step";
+}
+
+function campaignKpi(objective: string): string {
+  const normalised = objective.toLowerCase();
+  if (normalised.includes("sign-up") || normalised.includes("signup")) {
+    return "Qualified campaign sign-ups";
+  }
+  if (normalised.includes("trial") || normalised.includes("try")) {
+    return "First-time trials attributed to the campaign";
+  }
+  if (normalised.includes("traffic") || normalised.includes("visit")) {
+    return "Campaign-attributed visits during the target period";
+  }
+  if (normalised.includes("retention") || normalised.includes("repeat")) {
+    return "Repeat engagement or repeat-purchase rate";
+  }
+  if (normalised.includes("sales") || normalised.includes("revenue")) {
+    return "Campaign-attributed conversions and revenue";
+  }
+  return `Primary conversions tied to “${objective}”`;
+}
+
+function buildExecutionDraft({
+  clientId,
+  clientName,
+  brief,
+  keyInsight,
+  gapResult,
+}: {
+  clientId: number;
+  clientName: string;
+  brief: MarketingBrief;
+  keyInsight: Insight;
+  gapResult: CampaignGapResponse | null;
+}): CampaignExecutionDraft {
+  const currentMessage = brief.current_message.trim();
+  const matchedValue = gapResult?.analysis.matched_customer_values[0];
+  const messageGap =
+    gapResult?.analysis.message_gaps[0] ??
+    (currentMessage
+      ? `Connect “${currentMessage}” more directly to the evidence-backed customer need “${keyInsight.title}”.`
+      : `No current message is recorded; establish “${keyInsight.title}” as the campaign's customer-led message foundation.`);
+  const recommendedMessage = matchedValue
+    ? `${matchedValue}. ${keyInsight.summary}`
+    : `${keyInsight.title}. ${keyInsight.summary}`;
+  const channels = brief.channels.length > 0 ? brief.channels : ["Primary channel"];
+  const cta = campaignCta(brief.objective);
+  const suggestedIdeas = gapResult?.analysis.recommended_actions ?? [];
+  const contentIdeas = suggestedIdeas.length > 0
+    ? suggestedIdeas
+    : [
+        `${channels[0]} customer-proof story using “${keyInsight.evidence[0]?.excerpt ?? keyInsight.title}”.`,
+        `${channels[1 % channels.length]} message-gap creative that introduces “${recommendedMessage}”.`,
+        `${channels[2 % channels.length]} conversion post that closes with “${cta}”.`,
+      ];
+
+  return {
+    name: `${clientName.trim() || `Client #${clientId}`} · ${keyInsight.title}`,
+    objective: brief.objective,
+    targetAudience: brief.target_audience,
+    keyInsight,
+    messageGap,
+    recommendedMessage,
+    channels,
+    contentIdeas,
+    cta,
+    kpi: campaignKpi(brief.objective),
+  };
 }
 
 function pickInsight(insights: Insight[], categories: string[]): Insight | null {
@@ -36,8 +162,9 @@ function pickInsight(insights: Insight[], categories: string[]): Insight | null 
   );
 }
 
-export function CampaignPlan({ clientId, brief, insights, onNavigate }: Props) {
-  const [generated, setGenerated] = useState(false);
+export function CampaignPlan({ clientId, clientName = "", brief, insights, onNavigate }: Props) {
+  const [generationStatus, setGenerationStatus] = useState<GenerationStatus>("idle");
+  const [generationError, setGenerationError] = useState<string | null>(null);
   const [gapResult, setGapResult] = useState<CampaignGapResponse | null>(null);
   const [approval, setApproval] = useState<ApprovalState>("draft");
   const [selectedInsight, setSelectedInsight] = useState<Insight | null>(null);
@@ -46,7 +173,7 @@ export function CampaignPlan({ clientId, brief, insights, onNavigate }: Props) {
   const analysisController = useRef<AbortController | null>(null);
   const closeEvidence = useCallback(() => setSelectedInsight(null), []);
   const activeInsights = useMemo(
-    () => insights.filter((insight) => insight.client_id === clientId),
+    () => rankInsights(insights.filter((insight) => insight.client_id === clientId)),
     [clientId, insights],
   );
 
@@ -56,9 +183,19 @@ export function CampaignPlan({ clientId, brief, insights, onNavigate }: Props) {
       brief.channels.length > 0,
   );
   const evidenceReady = activeInsights.length > 0;
+  const generated = generationStatus === "success" || generationStatus === "error";
+  const keyInsight = activeInsights[0] ?? null;
+  const executionDraft = useMemo(
+    () =>
+      clientId !== null && keyInsight
+        ? buildExecutionDraft({ clientId, clientName, brief, keyInsight, gapResult })
+        : null,
+    [brief, clientId, clientName, gapResult, keyInsight],
+  );
 
   useEffect(() => {
-    setGenerated(false);
+    setGenerationStatus("idle");
+    setGenerationError(null);
     setGapResult(null);
     setApproval("draft");
     setSelectedInsight(null);
@@ -92,10 +229,14 @@ export function CampaignPlan({ clientId, brief, insights, onNavigate }: Props) {
   }, [clientId, selectedInsight]);
 
   const generateCampaign = async () => {
-    if (clientId === null) return;
+    if (clientId === null || generationStatus === "generating") return;
     const controller = new AbortController();
     analysisController.current?.abort();
     analysisController.current = controller;
+    setGenerationStatus("generating");
+    setGenerationError(null);
+    setGapResult(null);
+    setApproval("draft");
     setSignalsById(new Map());
     setEvidenceWarning(null);
     setSelectedInsight(null);
@@ -115,16 +256,20 @@ export function CampaignPlan({ clientId, brief, insights, onNavigate }: Props) {
         throw new Error("Campaign gap analysis belongs to a different client");
       }
       setGapResult(response);
+      setGenerationStatus("success");
     } catch (error) {
       if (controller.signal.aborted || isAbortError(error)) return;
       // Preserve the evidence-based local draft when analysis is unavailable.
       console.error("Campaign gap analysis failed", error);
+      setGenerationError(
+        "Live Customer-Message Gap analysis could not be completed. The evidence-based local campaign draft is shown below.",
+      );
+      setGenerationStatus("error");
     } finally {
       if (analysisController.current === controller) {
         analysisController.current = null;
       }
     }
-    setGenerated(true);
   };
 
   const driver = useMemo(
@@ -236,7 +381,7 @@ export function CampaignPlan({ clientId, brief, insights, onNavigate }: Props) {
           />
         )}
 
-        {clientId !== null && briefReady && evidenceReady && !generated && (
+        {clientId !== null && briefReady && evidenceReady && generationStatus === "idle" && (
           <section className="campaign-gate">
             <div className="campaign-gate-copy">
               <p className="section-kicker">Inputs ready</p>
@@ -248,6 +393,14 @@ export function CampaignPlan({ clientId, brief, insights, onNavigate }: Props) {
                 Objective: {brief.objective}. Audience: {brief.target_audience}.
                 Channels: {brief.channels.join(", ")}.
               </p>
+              {keyInsight && (
+                <p className="mt-3 max-w-2xl text-sm leading-6 text-cyan-200">
+                  Strongest planning anchor: <strong>{keyInsight.title}</strong>
+                  {keyInsight.evidence_count > 0
+                    ? ` · ${keyInsight.evidence_count} evidence item${keyInsight.evidence_count === 1 ? "" : "s"}`
+                    : " · evidence attachment pending"}
+                </p>
+              )}
               <button
                 type="button"
                 onClick={() => void generateCampaign()}
@@ -267,8 +420,34 @@ export function CampaignPlan({ clientId, brief, insights, onNavigate }: Props) {
           </section>
         )}
 
+        {clientId !== null && briefReady && evidenceReady && generationStatus === "generating" && (
+          <section className="surface-card p-6 sm:p-8" role="status" aria-live="polite">
+            <p className="section-kicker">Campaign generation</p>
+            <h2 className="mt-2 text-2xl font-semibold text-white">
+              Generating campaign plan…
+            </h2>
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-300">
+              Comparing the active message with customer evidence and turning the
+              strongest supported insight into an execution-ready draft.
+            </p>
+          </section>
+        )}
+
         {generated && briefReady && evidenceReady && (
           <>
+            {generationError && (
+              <section className="surface-card border-amber-500/40 p-5 sm:p-6" role="alert">
+                <p className="section-kicker text-amber-300">Live analysis unavailable</p>
+                <p className="mt-2 text-sm leading-6 text-slate-200">{generationError}</p>
+                <button
+                  type="button"
+                  onClick={() => void generateCampaign()}
+                  className="secondary-button mt-4"
+                >
+                  Retry live analysis
+                </button>
+              </section>
+            )}
             {gapResult ? (
               <CustomerMessageGapCard
                 gap={gapResult}
@@ -319,6 +498,12 @@ export function CampaignPlan({ clientId, brief, insights, onNavigate }: Props) {
                   </ol>
                 </article>
               </section>
+            )}
+            {executionDraft && (
+              <CampaignExecutionBrief
+                draft={executionDraft}
+                onViewEvidence={() => setSelectedInsight(executionDraft.keyInsight)}
+              />
             )}
             {evidenceWarning && (
               <p role="status" className="evidence-disclaimer">{evidenceWarning}</p>
@@ -413,6 +598,63 @@ export function CampaignPlan({ clientId, brief, insights, onNavigate }: Props) {
         />
       )}
     </main>
+  );
+}
+
+function CampaignExecutionBrief({
+  draft,
+  onViewEvidence,
+}: {
+  draft: CampaignExecutionDraft;
+  onViewEvidence: () => void;
+}) {
+  return (
+    <article className="surface-card p-5 sm:p-6" aria-label="Campaign execution brief">
+      <p className="section-kicker">Execution-ready campaign brief</p>
+      <h2 className="mt-2 text-2xl font-semibold text-white">{draft.name}</h2>
+      <dl className="mt-6 grid gap-5 md:grid-cols-2">
+        <PlanField label="Campaign name"><p>{draft.name}</p></PlanField>
+        <PlanField label="Objective"><p>{draft.objective}</p></PlanField>
+        <PlanField label="Target audience"><p>{draft.targetAudience}</p></PlanField>
+        <PlanField label="Key customer insight">
+          <p>{draft.keyInsight.title}</p>
+          <p className="mt-1 text-sm text-slate-400">{draft.keyInsight.summary}</p>
+          <button
+            type="button"
+            onClick={onViewEvidence}
+            className="mt-3 text-sm font-semibold text-cyan-300 hover:text-cyan-200"
+            aria-label={`View evidence for primary insight #${draft.keyInsight.id}`}
+          >
+            View supporting evidence →
+          </button>
+        </PlanField>
+        <PlanField label="Customer–Message Gap"><p>{draft.messageGap}</p></PlanField>
+        <PlanField label="Recommended key message"><p>{draft.recommendedMessage}</p></PlanField>
+        <PlanField label="Channels"><p>{draft.channels.join(", ")}</p></PlanField>
+        <PlanField label="Content / activation ideas">
+          <ul className="list-disc space-y-2 pl-5">
+            {draft.contentIdeas.map((idea) => <li key={idea}>{idea}</li>)}
+          </ul>
+        </PlanField>
+        <PlanField label="Call to action (CTA)"><p>{draft.cta}</p></PlanField>
+        <PlanField label="KPI / success metric"><p>{draft.kpi}</p></PlanField>
+      </dl>
+    </article>
+  );
+}
+
+function PlanField({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="rounded-2xl border border-slate-800 bg-slate-950/45 p-4">
+      <dt className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">{label}</dt>
+      <dd className="mt-2 text-sm leading-6 text-slate-200">{children}</dd>
+    </div>
   );
 }
 

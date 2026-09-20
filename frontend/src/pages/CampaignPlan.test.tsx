@@ -65,7 +65,15 @@ const signal: CustomerSignal = {
 };
 
 function renderPlan(insights: Insight[] = [insight]) {
-  return render(<CampaignPlan clientId={1} brief={brief} insights={insights} onNavigate={vi.fn()} />);
+  return render(
+    <CampaignPlan
+      clientId={1}
+      clientName="Bright Path"
+      brief={brief}
+      insights={insights}
+      onNavigate={vi.fn()}
+    />,
+  );
 }
 
 async function generate(user: ReturnType<typeof userEvent.setup>) {
@@ -101,6 +109,26 @@ describe("CampaignPlan", () => {
   afterEach(() => {
     vi.restoreAllMocks();
     window.localStorage.clear();
+  });
+
+  it("requires a client before campaign generation is available", () => {
+    render(
+      <CampaignPlan
+        clientId={null}
+        brief={brief}
+        insights={[insight]}
+        onNavigate={vi.fn()}
+      />,
+    );
+    expect(screen.getByText("Choose an SME client first")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Generate campaign plan" })).not.toBeInTheDocument();
+    expect(api.analyseCampaignGapAutomatically).not.toHaveBeenCalled();
+  });
+
+  it("recognises a selected client with a complete brief and usable insights", () => {
+    renderPlan();
+    expect(screen.queryByText("Choose an SME client first")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Generate campaign plan" })).toBeInTheDocument();
   });
 
   it("requires evidence before generating a plan", () => {
@@ -139,6 +167,71 @@ describe("CampaignPlan", () => {
     expect(api.listSignals).not.toHaveBeenCalled();
     await user.click(screen.getByRole("button", { name: "Approve campaign" }));
     expect(screen.getByText("Campaign approved")).toBeInTheDocument();
+  });
+
+  it("shows generation progress while live analysis is pending", async () => {
+    const analysis = deferred<CampaignGapResponse>();
+    vi.mocked(api.analyseCampaignGapAutomatically).mockReturnValueOnce(analysis.promise);
+    const user = userEvent.setup();
+    renderPlan();
+
+    await user.click(screen.getByRole("button", { name: "Generate campaign plan" }));
+    expect(screen.getByRole("status")).toHaveTextContent("Generating campaign plan");
+    expect(screen.queryByRole("button", { name: "Generate campaign plan" })).not.toBeInTheDocument();
+
+    await act(async () => analysis.resolve(gap));
+    expect(screen.getByRole("article", { name: "Customer-Message Gap" })).toBeInTheDocument();
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
+
+  it("builds a complete execution brief for the selected client", async () => {
+    const user = userEvent.setup();
+    renderPlan();
+    await generate(user);
+    const execution = within(screen.getByRole("article", { name: "Campaign execution brief" }));
+
+    expect(execution.getByRole("heading", { name: "Bright Path · Fast setup matters" })).toBeInTheDocument();
+    for (const field of [
+      "Campaign name",
+      "Objective",
+      "Target audience",
+      "Key customer insight",
+      "Customer–Message Gap",
+      "Recommended key message",
+      "Channels",
+      "Content / activation ideas",
+      "Call to action (CTA)",
+      "KPI / success metric",
+    ]) {
+      expect(execution.getByText(field)).toBeInTheDocument();
+    }
+    expect(execution.getByText("Sign up today")).toBeInTheDocument();
+    expect(execution.getByText("Qualified campaign sign-ups")).toBeInTheDocument();
+  });
+
+  it("selects the strongest evidence-backed insight instead of provider order", async () => {
+    const strongerInsight: Insight = {
+      ...insight,
+      id: 13,
+      title: "Trusted automation wins",
+      summary: "Customers adopt automation when the outcome is transparent.",
+      confidence: 0.95,
+      evidence_count: 3,
+      evidence: [
+        { signal_id: 22, excerpt: "I need to understand every automated action.", relevance_score: 0.96 },
+      ],
+    };
+    const user = userEvent.setup();
+    renderPlan([insight, strongerInsight]);
+
+    expect(screen.getByText((_, element) =>
+      element?.tagName === "P" &&
+      element.textContent?.includes("Strongest planning anchor: Trusted automation wins") === true,
+    )).toBeInTheDocument();
+    await generate(user);
+    const execution = within(screen.getByRole("article", { name: "Campaign execution brief" }));
+    expect(execution.getByRole("heading", { name: "Bright Path · Trusted automation wins" })).toBeInTheDocument();
+    expect(execution.getByText(strongerInsight.summary)).toBeInTheDocument();
   });
 
   it("uses gap-analysis values, gaps, and recommendations in the calendar rows", async () => {
@@ -289,6 +382,10 @@ describe("CampaignPlan", () => {
     expect(api.listSignals).not.toHaveBeenCalled();
     expect(screen.queryByRole("button", { name: "Generate campaign plan" })).not.toBeInTheDocument();
     expect(screen.queryByRole("article", { name: "Customer-Message Gap" })).not.toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Live Customer-Message Gap analysis could not be completed",
+    );
+    expect(screen.getByRole("button", { name: "Retry live analysis" })).toBeInTheDocument();
     expect(screen.getByText("Lead with customer-supported value, then remove the strongest barrier to action.")).toBeInTheDocument();
     expect(screen.getByText("Promise, prove, reassure")).toBeInTheDocument();
     expect(errorLog).toHaveBeenCalledWith("Campaign gap analysis failed", error);
