@@ -1,0 +1,43 @@
+# Docker builds use the repository root as their context:
+#   docker build -f backend/Dockerfile .
+# Keep secrets, local state, dependencies, and generated output out of every
+# build stage. Runtime configuration must be injected by the deployment.
+
+# Version control and local deployment specifications
+.git
+.github
+.gitignore
+containers.json
+
+# Secrets and local environment configuration (including example variants,
+# which are documentation only and are not needed in the runtime image)
+**/.env
+**/.env.*
+
+# Installed dependencies, virtual environments, and package-manager caches
+**/node_modules
+**/.venv
+**/venv
+**/.npm
+
+# Generated frontend and TypeScript output
+**/dist
+**/*.tsbuildinfo
+**/coverage
+
+# Python caches and test output
+**/__pycache__
+**/*.py[cod]
+**/.pytest_cache
+**/.mypy_cache
+**/.ruff_cache
+**/.coverage
+**/htmlcov
+
+# Local databases, logs, and OS/editor artifacts
+**/*.db
+**/*.sqlite
+**/*.sqlite3
+**/*.log
+**/.DS_Store
+**/Thumbs.db
