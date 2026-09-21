@@ -34,6 +34,14 @@ class ClientRepository:
     def get(self, client_id: int) -> Client | None:
         return self._db.get(Client, client_id)
 
+    def delete(self, client_id: int) -> bool:
+        client = self.get(client_id)
+        if client is None:
+            return False
+        self._db.delete(client)
+        self._db.commit()
+        return True
+
     def list(self) -> list[Client]:
         return list(self._db.scalars(select(Client).order_by(Client.id)).all())
 

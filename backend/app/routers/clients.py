@@ -54,6 +54,16 @@ def get_client(client_id: int, repo: ClientRepository = Depends(_repo)) -> Clien
     return ClientRead.model_validate(client)
 
 
+@router.delete("/{client_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_client(client_id: int, repo: ClientRepository = Depends(_repo)) -> None:
+    """Delete a client and the client-owned datasets, insights and campaigns."""
+    if not repo.delete(client_id):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Client {client_id} not found",
+        )
+
+
 @router.get("/{client_id}/datasets", response_model=list[DatasetRead])
 def list_client_datasets(
     client_id: int, repo: ClientRepository = Depends(_repo)

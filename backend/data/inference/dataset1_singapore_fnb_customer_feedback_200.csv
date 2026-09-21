@@ -1,0 +1,201 @@
+external_id,date,feedback_text,rating,product,channel
+SCF-2026-0001,2026-01-05,Everyone at our gathering asked whether the ondeh ondeh came in mixed seasonal flavours.,5,Ondeh Ondeh Box,Google Review
+SCF-2026-0002,2026-01-07,I bought the kaya toast breakfast set because the weekday price fits my budget and the drink is included.,5,Kaya Toast Breakfast Set,Google Review
+SCF-2026-0003,2026-01-09,"The ondeh ondeh box arrived crushed, and support closed the case before I could attach a photo.",1,Ondeh Ondeh Box,Email Support
+SCF-2026-0004,2026-01-11,I would love to choose the chilli level for the nasi lemak sambal.,4,Nasi Lemak Bowl,Post-purchase Survey
+SCF-2026-0005,2026-01-13,Same-day delivery was convenient when I needed a last-minute dessert for guests.,4,Ondeh Ondeh Box,Live Chat
+SCF-2026-0006,2026-01-15,I was nervous that the sambal would be too spicy for my parents because there was no heat guide.,3,Sambal Crunch Jar,Marketplace Review
+SCF-2026-0007,2026-01-17,I was worried about dairy in the kopi even after selecting the oat option.,3,Kopi Oat Latte,Live Chat
+SCF-2026-0008,2026-01-19,I came back for the kaya toast because the bread is consistently crisp and the eggs arrive just right.,5,Kaya Toast Breakfast Set,Google Review
+SCF-2026-0009,2026-01-21,I was curious about the chilled version of pandan cake and added a slice to my delivery order.,3,Pandan Chiffon Cake,Food Delivery App
+SCF-2026-0010,2026-01-23,A caffeine level guide is missing from the cold brew page.,3,Gula Melaka Cold Brew,Mobile App Review
+SCF-2026-0011,2026-01-25,I came back after the staff remembered my less-sweet drink preference.,5,Gula Melaka Cold Brew,Google Review
+SCF-2026-0012,2026-01-27,Plant-based breakfast choices are a growing trend among my colleagues this year.,4,Kaya Toast Breakfast Set,Google Review
+SCF-2026-0013,2026-01-29,Shelf-stable local spreads seem to be a trend for overseas gifts.,4,Kaya Spread Jar,Marketplace Review
+SCF-2026-0014,2026-01-31,The launch voucher encouraged me to test the new chicken rice bowl during lunch.,4,Chicken Rice Bowl,Mobile App Review
+SCF-2026-0015,2026-02-02,"The pickup shelf has a labelling problem, which caused another customer to take my order.",2,Nasi Lemak Bowl,Google Review
+SCF-2026-0016,2026-02-04,I waited forty minutes for pickup even though the confirmation said my breakfast was ready.,1,Kaya Toast Breakfast Set,Google Review
+SCF-2026-0017,2026-02-06,The sambal jar lid has an issue: it is extremely hard to open and leaves a sharp edge.,2,Sambal Crunch Jar,Marketplace Review
+SCF-2026-0018,2026-02-08,Customers are increasingly looking for clearly labelled high-protein lunch bowls.,4,Chicken Rice Bowl,Post-purchase Survey
+SCF-2026-0019,2026-02-10,"The jar stays crunchy after opening, so I keep it in my pantry and replace it when it runs out.",5,Sambal Crunch Jar,Marketplace Review
+SCF-2026-0020,2026-02-12,"I was curious about gula melaka in cold brew, so I ordered one to see whether the flavours worked together.",4,Gula Melaka Cold Brew,Google Review
+SCF-2026-0021,2026-02-14,"This was my first time ordering the pandan chiffon cake, and the light texture was a pleasant surprise.",5,Pandan Chiffon Cake,Marketplace Review
+SCF-2026-0022,2026-02-16,I would love a vegetarian version of the laksa that preserves the same rich broth.,4,Laksa Bowl,Google Review
+SCF-2026-0023,2026-02-18,A clear carbon-footprint note is becoming a new expectation for delivered meals.,3,Laksa Bowl,Post-purchase Survey
+SCF-2026-0024,2026-02-20,I used a voucher to order the family meal bundle for a weekend gathering.,4,Family Meal Bundle,Food Delivery App
+SCF-2026-0025,2026-02-22,A welcome voucher persuaded me to order the laksa bowl when I had not used this café before.,4,Laksa Bowl,Food Delivery App
+SCF-2026-0026,2026-02-24,"The filling had leaked out of several pieces, and I am not coming back for another gift box.",2,Ondeh Ondeh Box,Marketplace Review
+SCF-2026-0027,2026-02-26,I keep choosing the chicken rice bowl because the sauce is packed separately and the vegetables stay fresh.,4,Chicken Rice Bowl,Food Delivery App
+SCF-2026-0028,2026-02-28,The delivery rider waited at the wrong block and the food reached us cold.,2,Family Meal Bundle,Food Delivery App
+SCF-2026-0029,2026-03-02,The broken seal made me nervous about whether the kaya jar was safe to eat.,2,Kaya Spread Jar,Marketplace Review
+SCF-2026-0030,2026-03-04,The kaya separated badly after opening and was not worth storing in the pantry.,1,Kaya Spread Jar,Marketplace Review
+SCF-2026-0031,2026-03-06,I purchased the kaya spread jar because the resealable pack looked easy to store and the ingredients were clearly listed.,4,Kaya Spread Jar,Marketplace Review
+SCF-2026-0032,2026-03-08,I am afraid the cold brew bottle could leak in my work bag because the cap feels loose.,2,Gula Melaka Cold Brew,Google Review
+SCF-2026-0033,2026-03-10,The fast collection shelf has made me loyal to this breakfast stop on busy mornings.,5,Kaya Toast Breakfast Set,Post-purchase Survey
+SCF-2026-0034,2026-03-12,The price of the smaller laksa bowl made it an easy lunch choice for me.,4,Laksa Bowl,Google Review
+SCF-2026-0035,2026-03-14,"I bought the sambal crunch jar after seeing that one jar could be used for noodles, rice and toast.",5,Sambal Crunch Jar,Marketplace Review
+SCF-2026-0036,2026-03-16,"The laksa broth tastes dependable, so I keep choosing it for rainy-day lunches.",5,Laksa Bowl,Food Delivery App
+SCF-2026-0037,2026-03-18,"The price included secure packaging, which made the cake suitable for sending as a gift.",4,Pandan Chiffon Cake,Post-purchase Survey
+SCF-2026-0038,2026-03-20,"A colleague shared the breakfast set with me, so I gave it a go during my next office day.",4,Kaya Toast Breakfast Set,Google Review
+SCF-2026-0039,2026-03-22,Nutritional information is missing for several breakfast combinations.,3,Kaya Toast Breakfast Set,Email Support
+SCF-2026-0040,2026-03-24,I waited through three chat transfers before anyone could confirm whether the cake was allergen-safe.,2,Pandan Chiffon Cake,Live Chat
+SCF-2026-0041,2026-03-26,Our family has become loyal to the meal bundle because the portions are predictable and easy to share.,5,Family Meal Bundle,Email Support
+SCF-2026-0042,2026-03-28,The office snack box was value for money compared with ordering individual desserts for the team.,4,Ondeh Ondeh Box,Food Delivery App
+SCF-2026-0043,2026-03-30,I came back for the pandan chiffon cake because every loaf has the same aroma and texture.,5,Pandan Chiffon Cake,Google Review
+SCF-2026-0044,2026-04-01,The sambal add-on was cheap and turned a basic rice bowl into a more satisfying lunch.,4,Sambal Crunch Jar,Food Delivery App
+SCF-2026-0045,2026-04-03,"I have stuck with the kaya spread because it is smooth, not overly sweet and easy to finish before the expiry date.",5,Kaya Spread Jar,Marketplace Review
+SCF-2026-0046,2026-04-05,The family bundle needs a smaller option for two people rather than only four.,3,Family Meal Bundle,Food Delivery App
+SCF-2026-0047,2026-04-07,I won't order the family meal bundle next weekend because two containers leaked inside the bag.,2,Family Meal Bundle,Food Delivery App
+SCF-2026-0048,2026-04-09,The drink lid opened in transit; I won't add this cold brew to a delivery basket anymore.,1,Gula Melaka Cold Brew,Live Chat
+SCF-2026-0049,2026-04-11,Reusable delivery packaging feels like a new expectation for regular office orders.,4,Family Meal Bundle,Food Delivery App
+SCF-2026-0050,2026-04-13,The jar lost its crunch within a day and was not worth the cupboard space.,2,Sambal Crunch Jar,Marketplace Review
+SCF-2026-0051,2026-04-15,I was afraid the order had gone to the old address because the confirmation screen showed no unit number.,2,Chicken Rice Bowl,Mobile App Review
+SCF-2026-0052,2026-04-17,The saved order feature makes it easy to repeat my usual lunch without rebuilding the basket.,4,Laksa Bowl,Mobile App Review
+SCF-2026-0053,2026-04-19,"The family meal bundle felt like good value for money for four people, especially with the soup and sides included.",5,Family Meal Bundle,Food Delivery App
+SCF-2026-0054,2026-04-21,I would love an option to combine kaya and sambal jars in one pantry gift set.,5,Kaya Spread Jar,Marketplace Review
+SCF-2026-0055,2026-04-23,"My neighbour recommended the sambal jar, so I gave it a go with fried rice at home.",5,Sambal Crunch Jar,Marketplace Review
+SCF-2026-0056,2026-04-25,"The pandan cake keeps well for two days, which is why it remains part of my regular grocery order.",5,Pandan Chiffon Cake,Marketplace Review
+SCF-2026-0057,2026-04-27,I am worried that the pandan cake may contain traces of nuts because the listing is not specific.,3,Pandan Chiffon Cake,Live Chat
+SCF-2026-0058,2026-04-29,Customers are increasingly asking for cakes that travel well on public transport.,4,Pandan Chiffon Cake,Google Review
+SCF-2026-0059,2026-05-01,"The slice was dry and not worth the delivery fee, so I will choose dessert elsewhere.",2,Pandan Chiffon Cake,Google Review
+SCF-2026-0060,2026-05-03,Shoppers are increasingly looking for refill packs instead of buying another glass jar.,4,Kaya Spread Jar,Marketplace Review
+SCF-2026-0061,2026-05-05,The chicken rice bowl needs an extra vegetable side that can be added in one tap.,3,Chicken Rice Bowl,Mobile App Review
+SCF-2026-0062,2026-05-07,The mobile checkout has a problem where the payment spinner continues even after the card is charged.,2,Family Meal Bundle,Mobile App Review
+SCF-2026-0063,2026-05-09,The kaya jar needs a smaller trial size for people who live alone.,3,Kaya Spread Jar,Marketplace Review
+SCF-2026-0064,2026-05-11,The ingredient response reassured me that the pandan cake did not use the additive I avoid.,5,Pandan Chiffon Cake,Live Chat
+SCF-2026-0065,2026-05-13,I won't reorder the chicken rice bowl because the sauce quantity was too small for the portion.,2,Chicken Rice Bowl,Post-purchase Survey
+SCF-2026-0066,2026-05-15,I felt unsure whether the nasi lemak could stay unrefrigerated during a long meeting.,3,Nasi Lemak Bowl,Post-purchase Survey
+SCF-2026-0067,2026-05-17,I am worried about glass breakage when pantry jars are left at the door.,3,Sambal Crunch Jar,Food Delivery App
+SCF-2026-0068,2026-05-19,The app has a recurring issue that removes the postal code whenever I edit the address.,1,Laksa Bowl,Mobile App Review
+SCF-2026-0069,2026-05-21,I wish there were a collection point near the CBD for pre-ordered cakes.,4,Pandan Chiffon Cake,Google Review
+SCF-2026-0070,2026-05-23,"The delivery window was vague, so I felt unsure about ordering breakfast before an early meeting.",3,Kaya Toast Breakfast Set,Food Delivery App
+SCF-2026-0071,2026-05-25,I am hesitant to order a large bundle until the allergen details are easier to find.,3,Family Meal Bundle,Email Support
+SCF-2026-0072,2026-05-27,It was frustrating to receive no cutlery for a meal delivered to a hotel.,2,Chicken Rice Bowl,Food Delivery App
+SCF-2026-0073,2026-05-29,I switched to another breakfast place after the toast arrived soft on three separate mornings.,2,Kaya Toast Breakfast Set,Post-purchase Survey
+SCF-2026-0074,2026-05-31,"It was my first time having ondeh ondeh with a less-sweet filling, and I liked the balance.",5,Ondeh Ondeh Box,Google Review
+SCF-2026-0075,2026-06-02,I repeat my order for the nasi lemak bowl because the sambal and rice taste consistent each week.,5,Nasi Lemak Bowl,Mobile App Review
+SCF-2026-0076,2026-06-04,Support took two days to answer my message about a cracked kaya jar.,2,Kaya Spread Jar,Email Support
+SCF-2026-0077,2026-06-06,The long queue and slow table clearing made a quick breakfast take almost an hour.,2,Kaya Toast Breakfast Set,Google Review
+SCF-2026-0078,2026-06-08,I order the ondeh ondeh box again for office gatherings because it travels well and is easy to serve.,4,Ondeh Ondeh Box,Food Delivery App
+SCF-2026-0079,2026-06-10,I wish the ondeh ondeh box included a simple ingredient card for gift recipients.,4,Ondeh Ondeh Box,Marketplace Review
+SCF-2026-0080,2026-06-12,The small tasting portion let me sample the laksa gravy before committing to a full bowl.,5,Laksa Bowl,Google Review
+SCF-2026-0081,2026-06-14,Please bring back the reusable cold-brew bottle return programme.,4,Gula Melaka Cold Brew,Post-purchase Survey
+SCF-2026-0082,2026-06-16,The mini jar sample made me curious about using kaya in overnight oats.,4,Kaya Spread Jar,Marketplace Review
+SCF-2026-0083,2026-06-18,I tried the kopi oat latte after seeing the short preparation video on social media.,4,Kopi Oat Latte,Mobile App Review
+SCF-2026-0084,2026-06-20,Delivery was slow and the laksa noodles had absorbed most of the broth by the time they arrived.,2,Laksa Bowl,Food Delivery App
+SCF-2026-0085,2026-06-22,There is an issue with customisation notes disappearing before the nasi lemak order is submitted.,2,Nasi Lemak Bowl,Mobile App Review
+SCF-2026-0086,2026-06-24,"The rice was undercooked, so I won't include this bowl in my next office lunch order.",1,Nasi Lemak Bowl,Email Support
+SCF-2026-0087,2026-06-26,I was hesitant to enter my card details after the checkout page refreshed twice.,2,Family Meal Bundle,Mobile App Review
+SCF-2026-0088,2026-06-28,Compact two-person meal sets are becoming a trend among households that order on weekdays.,4,Family Meal Bundle,Food Delivery App
+SCF-2026-0089,2026-06-30,"The cake tasted strongly of artificial flavouring, and I am not coming back for another slice.",2,Pandan Chiffon Cake,Google Review
+SCF-2026-0090,2026-07-02,Pre-ordering the breakfast set was convenient because I could collect it before my first meeting.,5,Kaya Toast Breakfast Set,Mobile App Review
+SCF-2026-0091,2026-07-04,I wish the kopi oat latte could be ordered without added syrup.,4,Kopi Oat Latte,Google Review
+SCF-2026-0092,2026-07-06,Clear reheating instructions reassured me that the chicken rice would still be safe later in the evening.,4,Chicken Rice Bowl,Post-purchase Survey
+SCF-2026-0093,2026-07-08,A live order-status map now feels like a new expectation for lunch delivery.,3,Chicken Rice Bowl,Mobile App Review
+SCF-2026-0094,2026-07-10,I bought the kopi oat latte because the dairy-free choice was shown clearly on the menu.,5,Kopi Oat Latte,Google Review
+SCF-2026-0095,2026-07-12,I tried the nasi lemak bowl after a friend sent me the menu link.,4,Nasi Lemak Bowl,Post-purchase Survey
+SCF-2026-0096,2026-07-14,"Pickup was convenient on the way to work, so I ordered the nasi lemak bowl instead of queueing elsewhere.",4,Nasi Lemak Bowl,Post-purchase Survey
+SCF-2026-0097,2026-07-16,I won't reorder the laksa bowl because the portion was much smaller than the menu photo.,2,Laksa Bowl,Food Delivery App
+SCF-2026-0098,2026-07-18,Everyone at the gym café has been asking for unsweetened oat kopi after morning classes.,4,Kopi Oat Latte,Google Review
+SCF-2026-0099,2026-07-20,People are increasingly choosing pickup slots before work instead of joining the morning queue.,4,Nasi Lemak Bowl,Mobile App Review
+SCF-2026-0100,2026-07-22,Please bring back the mini pandan loaves because they were easier to share at work.,4,Pandan Chiffon Cake,Marketplace Review
+SCF-2026-0101,2026-07-24,A scheduled delivery option is missing for larger office orders.,3,Family Meal Bundle,Email Support
+SCF-2026-0102,2026-07-26,I bought the lunch combo because it allowed me to choose a bowl and drink in one order.,5,Chicken Rice Bowl,Mobile App Review
+SCF-2026-0103,2026-07-28,Lower-sodium pantry products appear to be a trend among the older shoppers in my family.,4,Sambal Crunch Jar,Marketplace Review
+SCF-2026-0104,2026-07-30,I felt unsure about ordering laksa for a child because the spice level was not explained.,3,Laksa Bowl,Food Delivery App
+SCF-2026-0105,2026-08-01,I order the kopi oat latte again whenever I work nearby because the sweetness stays balanced.,5,Kopi Oat Latte,Post-purchase Survey
+SCF-2026-0106,2026-08-03,"Everyone in my office is asking for less-sweet drinks, and the adjustable cold brew fits that shift.",5,Gula Melaka Cold Brew,Post-purchase Survey
+SCF-2026-0107,2026-08-05,The tamper sticker reassured me when the ondeh ondeh box arrived at the office reception.,5,Ondeh Ondeh Box,Food Delivery App
+SCF-2026-0108,2026-08-07,Everyone in our team wanted individual labels on the lunch bowls for group delivery.,4,Family Meal Bundle,Email Support
+SCF-2026-0109,2026-08-09,"The breakfast packaging trapped steam and made everything soggy, so I won't order it for delivery.",2,Kaya Toast Breakfast Set,Food Delivery App
+SCF-2026-0110,2026-08-11,I wish the kaya toast set had a wholemeal bread option for weekday breakfasts.,4,Kaya Toast Breakfast Set,Post-purchase Survey
+SCF-2026-0111,2026-08-13,I switched my team lunch to another vendor after the bundle arrived incomplete twice.,1,Family Meal Bundle,Email Support
+SCF-2026-0112,2026-08-15,The missing drink made the office order frustrating because I had to contact the café during a meeting.,2,Kopi Oat Latte,Email Support
+SCF-2026-0113,2026-08-17,I purchased the pandan chiffon cake because the compact size suited a small family celebration.,5,Pandan Chiffon Cake,Marketplace Review
+SCF-2026-0114,2026-08-19,The tasting sample at the counter introduced me to the sambal crunch jar and the smoky flavour surprised me.,5,Sambal Crunch Jar,Post-purchase Survey
+SCF-2026-0115,2026-08-21,I switched to a different kopi stall because the oat latte sweetness varies too much between visits.,2,Kopi Oat Latte,Google Review
+SCF-2026-0116,2026-08-23,I tried the cold brew flight at the pop-up and preferred the gula melaka version.,4,Gula Melaka Cold Brew,Post-purchase Survey
+SCF-2026-0117,2026-08-25,The cold brew and cake combo was cheap enough for an afternoon treat without feeling excessive.,4,Gula Melaka Cold Brew,Mobile App Review
+SCF-2026-0118,2026-08-27,"I requested a refund for the leaking cold brew, but the status has not changed in the app.",1,Gula Melaka Cold Brew,Live Chat
+SCF-2026-0119,2026-08-29,I came back for the cold brew after the team adjusted the ice level exactly as requested.,5,Gula Melaka Cold Brew,Live Chat
+SCF-2026-0120,2026-08-31,"The drink tasted mostly of ice, and I am not coming back for this version.",2,Gula Melaka Cold Brew,Mobile App Review
+SCF-2026-0121,2026-01-22,"A colleague recommended the ondeh ondeh box, and the pieces stayed soft and the gula melaka centre tasted fresh made my first order worthwhile.",4,Ondeh Ondeh Box,Google Review
+SCF-2026-0122,2026-04-05,The bundle price made the kaya toast breakfast set affordable enough for a morning meeting without exceeding my usual budget.,4,Kaya Toast Breakfast Set,Food Delivery App
+SCF-2026-0123,2026-06-17,"Pre-ordering the nasi lemak bowl for a weekday lunch saved time, and collection was ready when promised.",5,Nasi Lemak Bowl,Post-purchase Survey
+SCF-2026-0124,2026-08-29,I have reordered the sambal crunch jar because the smoky flavour and crunch worked with several home meals on each of my recent visits.,5,Sambal Crunch Jar,Google Review
+SCF-2026-0125,2026-03-04,Serving the kopi oat latte at a morning commute was simple because everything arrived clearly packed and ready to share.,4,Kopi Oat Latte,Post-purchase Survey
+SCF-2026-0126,2026-05-16,"This order disappointed me because the slice was dry and carried an artificial aftertaste, so I am unlikely to buy it again soon.",2,Pandan Chiffon Cake,Marketplace Review
+SCF-2026-0127,2026-07-28,"On arrival, the bottle cap leaked inside the delivery bag, and the order no longer felt safe or presentable.",2,Gula Melaka Cold Brew,Food Delivery App
+SCF-2026-0128,2026-01-31,"The app marked the laksa bowl as ready, but I still waited more than twenty-five minutes before an early class.",2,Laksa Bowl,Post-purchase Survey
+SCF-2026-0129,2026-04-14,"Support answered my question about allergens and ingredients for every included dish in one clear reply, which gave me confidence to complete the order.",4,Family Meal Bundle,Email Support
+SCF-2026-0130,2026-06-26,"My selection for the kaya spread jar disappeared after payment, and the app gave me no way to correct it.",2,Kaya Spread Jar,Mobile App Review
+SCF-2026-0131,2026-09-07,Please add extra vegetables and a smaller rice portion; that would make the chicken rice bowl work better for my household.,4,Chicken Rice Bowl,Mobile App Review
+SCF-2026-0132,2026-03-13,"I hesitated to serve the ondeh ondeh box because the listing did not clearly explain coconut, gluten and storage information.",3,Ondeh Ondeh Box,Marketplace Review
+SCF-2026-0133,2026-05-25,"The product page needs clearer egg, dairy and bread ingredient information before customers are asked to check out.",3,Kaya Toast Breakfast Set,Marketplace Review
+SCF-2026-0134,2026-08-06,"Customisable local rice bowls are becoming common among people I know, and I would like this café to offer one.",4,Nasi Lemak Bowl,Post-purchase Survey
+SCF-2026-0135,2026-02-09,A recyclable or returnable packaging option for the sambal crunch jar would influence where I place my regular orders.,4,Sambal Crunch Jar,Google Review
+SCF-2026-0136,2026-04-23,"The drink volume was smaller than the menu photo suggested, so the price felt high for what arrived.",3,Kopi Oat Latte,Google Review
+SCF-2026-0137,2026-07-05,Delivery took much longer than the estimate; the cake reached me tilted and slightly warm and the order was no longer enjoyable.,2,Pandan Chiffon Cake,Food Delivery App
+SCF-2026-0138,2026-01-08,"The staff remembered my preference for half sweetness and less ice with the gula melaka cold brew, and that personal service is why I keep returning.",5,Gula Melaka Cold Brew,Live Chat
+SCF-2026-0139,2026-03-22,"A colleague recommended the laksa bowl, and the broth was rich and the noodles retained a pleasant bite made my first order worthwhile.",4,Laksa Bowl,Post-purchase Survey
+SCF-2026-0140,2026-06-03,The bundle price made the family meal bundle affordable enough for a weekend family dinner without exceeding my usual budget.,4,Family Meal Bundle,Google Review
+SCF-2026-0141,2026-08-15,"Pre-ordering the kaya spread jar for a grocery order saved time, and collection was ready when promised.",5,Kaya Spread Jar,Google Review
+SCF-2026-0142,2026-02-18,I have reordered the chicken rice bowl because the chicken was tender and the sauce arrived separately on each of my recent visits.,5,Chicken Rice Bowl,Post-purchase Survey
+SCF-2026-0143,2026-05-02,Serving the ondeh ondeh box at an office tea break was simple because everything arrived clearly packed and ready to share.,4,Ondeh Ondeh Box,Email Support
+SCF-2026-0144,2026-07-14,"This order disappointed me because the toast was limp and the eggs were already cold, so I am unlikely to buy it again soon.",2,Kaya Toast Breakfast Set,Google Review
+SCF-2026-0145,2026-01-17,"On arrival, sambal leaked across the rice and soaked the garnish, and the order no longer felt safe or presentable.",1,Nasi Lemak Bowl,Live Chat
+SCF-2026-0146,2026-03-31,"The app marked the sambal crunch jar as ready, but I still waited more than twenty-five minutes before an early class.",2,Sambal Crunch Jar,Mobile App Review
+SCF-2026-0147,2026-06-12,"Support answered my question about caffeine, sugar and dairy cross-contact information in one clear reply, which gave me confidence to complete the order.",4,Kopi Oat Latte,Live Chat
+SCF-2026-0148,2026-08-24,"My selection for the pandan chiffon cake disappeared after payment, and the app gave me no way to correct it.",2,Pandan Chiffon Cake,Email Support
+SCF-2026-0149,2026-02-27,Please add adjustable sweetness and ice levels; that would make the gula melaka cold brew work better for my household.,4,Gula Melaka Cold Brew,Google Review
+SCF-2026-0150,2026-05-11,"I hesitated to serve the laksa bowl because the listing did not clearly explain shellfish, coconut and spice-level information.",3,Laksa Bowl,Live Chat
+SCF-2026-0151,2026-07-23,The product page needs clearer allergens and ingredients for every included dish before customers are asked to check out.,3,Family Meal Bundle,Post-purchase Survey
+SCF-2026-0152,2026-01-26,"Refill packs for local pantry products are becoming common among people I know, and I would like this café to offer one.",4,Kaya Spread Jar,Google Review
+SCF-2026-0153,2026-04-09,A recyclable or returnable packaging option for the chicken rice bowl would influence where I place my regular orders.,4,Chicken Rice Bowl,Post-purchase Survey
+SCF-2026-0154,2026-06-21,"The number of intact pieces was smaller than the menu photo suggested, so the price felt high for what arrived.",3,Ondeh Ondeh Box,Food Delivery App
+SCF-2026-0155,2026-09-02,Delivery took much longer than the estimate; the long journey made the toast soggy and the order was no longer enjoyable.,2,Kaya Toast Breakfast Set,Email Support
+SCF-2026-0156,2026-03-08,"The staff remembered my preference for medium sambal on the side with the nasi lemak bowl, and that personal service is why I keep returning.",5,Nasi Lemak Bowl,Post-purchase Survey
+SCF-2026-0157,2026-05-20,"A colleague recommended the sambal crunch jar, and the smoky flavour and crunch worked with several home meals made my first order worthwhile.",4,Sambal Crunch Jar,Google Review
+SCF-2026-0158,2026-08-01,The bundle price made the kopi oat latte affordable enough for a morning commute without exceeding my usual budget.,4,Kopi Oat Latte,Food Delivery App
+SCF-2026-0159,2026-02-04,"Pre-ordering the pandan chiffon cake for a small family celebration saved time, and collection was ready when promised.",5,Pandan Chiffon Cake,Post-purchase Survey
+SCF-2026-0160,2026-04-18,I have reordered the gula melaka cold brew because the coffee and gula melaka flavours stayed balanced on each of my recent visits.,5,Gula Melaka Cold Brew,Google Review
+SCF-2026-0161,2026-06-30,Serving the laksa bowl at a rainy-day lunch was simple because everything arrived clearly packed and ready to share.,4,Laksa Bowl,Post-purchase Survey
+SCF-2026-0162,2026-09-11,"This order disappointed me because one main dish was missing and two sides were underfilled, so I am unlikely to buy it again soon.",2,Family Meal Bundle,Marketplace Review
+SCF-2026-0163,2026-03-17,"On arrival, the glass jar arrived with a loose safety seal, and the order no longer felt safe or presentable.",2,Kaya Spread Jar,Food Delivery App
+SCF-2026-0164,2026-05-29,"The app marked the chicken rice bowl as ready, but I still waited more than twenty-five minutes before an early class.",2,Chicken Rice Bowl,Post-purchase Survey
+SCF-2026-0165,2026-08-10,"Support answered my question about coconut, gluten and storage information in one clear reply, which gave me confidence to complete the order.",4,Ondeh Ondeh Box,Post-purchase Survey
+SCF-2026-0166,2026-02-13,"My selection for the kaya toast breakfast set disappeared after payment, and the app gave me no way to correct it.",1,Kaya Toast Breakfast Set,Live Chat
+SCF-2026-0167,2026-04-27,Please add three clearly labelled sambal heat levels; that would make the nasi lemak bowl work better for my household.,4,Nasi Lemak Bowl,Post-purchase Survey
+SCF-2026-0168,2026-07-09,"I hesitated to serve the sambal crunch jar because the listing did not clearly explain chilli strength, sodium and allergen information.",3,Sambal Crunch Jar,Marketplace Review
+SCF-2026-0169,2026-01-12,"The product page needs clearer caffeine, sugar and dairy cross-contact information before customers are asked to check out.",3,Kopi Oat Latte,Marketplace Review
+SCF-2026-0170,2026-03-26,"Travel-friendly mini cakes are becoming common among people I know, and I would like this café to offer one.",4,Pandan Chiffon Cake,Post-purchase Survey
+SCF-2026-0171,2026-06-07,A recyclable or returnable packaging option for the gula melaka cold brew would influence where I place my regular orders.,4,Gula Melaka Cold Brew,Google Review
+SCF-2026-0172,2026-08-19,"The noodle and broth portion was smaller than the menu photo suggested, so the price felt high for what arrived.",3,Laksa Bowl,Google Review
+SCF-2026-0173,2026-02-22,Delivery took much longer than the estimate; different dishes arrived at noticeably different temperatures and the order was no longer enjoyable.,2,Family Meal Bundle,Food Delivery App
+SCF-2026-0174,2026-05-06,"The staff remembered my preference for the less-sweet version with the kaya spread jar, and that personal service is why I keep returning.",5,Kaya Spread Jar,Live Chat
+SCF-2026-0175,2026-07-18,"A colleague recommended the chicken rice bowl, and the chicken was tender and the sauce arrived separately made my first order worthwhile.",4,Chicken Rice Bowl,Post-purchase Survey
+SCF-2026-0176,2026-01-21,The bundle price made the ondeh ondeh box affordable enough for an office tea break without exceeding my usual budget.,4,Ondeh Ondeh Box,Mobile App Review
+SCF-2026-0177,2026-04-04,"Pre-ordering the kaya toast breakfast set for a morning meeting saved time, and collection was ready when promised.",5,Kaya Toast Breakfast Set,Mobile App Review
+SCF-2026-0178,2026-06-16,I have reordered the nasi lemak bowl because the rice was fragrant and the sambal had a balanced heat on each of my recent visits.,5,Nasi Lemak Bowl,Marketplace Review
+SCF-2026-0179,2026-08-28,Serving the sambal crunch jar at a pantry restock was simple because everything arrived clearly packed and ready to share.,4,Sambal Crunch Jar,Email Support
+SCF-2026-0180,2026-03-03,"This order disappointed me because the drink was watery and the oat milk tasted sour, so I am unlikely to buy it again soon.",2,Kopi Oat Latte,Google Review
+SCF-2026-0181,2026-05-15,"On arrival, the cake box was dented and the icing touched the lid, and the order no longer felt safe or presentable.",1,Pandan Chiffon Cake,Live Chat
+SCF-2026-0182,2026-07-27,"The app marked the gula melaka cold brew as ready, but I still waited more than twenty-five minutes before an early class.",2,Gula Melaka Cold Brew,Mobile App Review
+SCF-2026-0183,2026-01-30,"Support answered my question about shellfish, coconut and spice-level information in one clear reply, which gave me confidence to complete the order.",4,Laksa Bowl,Live Chat
+SCF-2026-0184,2026-04-13,"My selection for the family meal bundle disappeared after payment, and the app gave me no way to correct it.",2,Family Meal Bundle,Email Support
+SCF-2026-0185,2026-06-25,Please add a small trial jar and a refill pouch; that would make the kaya spread jar work better for my household.,4,Kaya Spread Jar,Google Review
+SCF-2026-0186,2026-09-06,"I hesitated to serve the chicken rice bowl because the listing did not clearly explain calorie, sodium and sauce ingredient information.",3,Chicken Rice Bowl,Live Chat
+SCF-2026-0187,2026-03-12,"The product page needs clearer coconut, gluten and storage information before customers are asked to check out.",3,Ondeh Ondeh Box,Mobile App Review
+SCF-2026-0188,2026-05-24,"Lighter breakfast sets with wholemeal bread are becoming common among people I know, and I would like this café to offer one.",4,Kaya Toast Breakfast Set,Marketplace Review
+SCF-2026-0189,2026-08-05,A recyclable or returnable packaging option for the nasi lemak bowl would influence where I place my regular orders.,4,Nasi Lemak Bowl,Food Delivery App
+SCF-2026-0190,2026-02-08,"The jar quantity was smaller than the menu photo suggested, so the price felt high for what arrived.",3,Sambal Crunch Jar,Food Delivery App
+SCF-2026-0191,2026-04-22,Delivery took much longer than the estimate; most of the ice had melted before arrival and the order was no longer enjoyable.,2,Kopi Oat Latte,Email Support
+SCF-2026-0192,2026-07-04,"The staff remembered my preference for the reduced-sugar recipe with the pandan chiffon cake, and that personal service is why I keep returning.",5,Pandan Chiffon Cake,Post-purchase Survey
+SCF-2026-0193,2026-01-07,"A colleague recommended the gula melaka cold brew, and the coffee and gula melaka flavours stayed balanced made my first order worthwhile.",4,Gula Melaka Cold Brew,Google Review
+SCF-2026-0194,2026-03-21,The bundle price made the laksa bowl affordable enough for a rainy-day lunch without exceeding my usual budget.,4,Laksa Bowl,Food Delivery App
+SCF-2026-0195,2026-06-02,"Pre-ordering the family meal bundle for a weekend family dinner saved time, and collection was ready when promised.",5,Family Meal Bundle,Post-purchase Survey
+SCF-2026-0196,2026-08-14,I have reordered the kaya spread jar because the spread was smooth and not excessively sweet on each of my recent visits.,5,Kaya Spread Jar,Google Review
+SCF-2026-0197,2026-02-17,Serving the chicken rice bowl at an office lunch was simple because everything arrived clearly packed and ready to share.,4,Chicken Rice Bowl,Post-purchase Survey
+SCF-2026-0198,2026-05-01,"This order disappointed me because several pieces were dry and the filling had hardened, so I am unlikely to buy it again soon.",2,Ondeh Ondeh Box,Food Delivery App
+SCF-2026-0199,2026-07-13,"On arrival, steam collected inside the box and softened the toast, and the order no longer felt safe or presentable.",2,Kaya Toast Breakfast Set,Email Support
+SCF-2026-0200,2026-01-16,"The app marked the nasi lemak bowl as ready, but I still waited more than twenty-five minutes before an early class.",2,Nasi Lemak Bowl,Google Review

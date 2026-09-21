@@ -7,6 +7,8 @@ import type {
   CampaignCalendarItem,
   CampaignGapResponse,
   CampaignCreateInput,
+  CampaignGenerateInput,
+  CampaignGenerationResponse,
   Client,
   ColumnMapping,
   CustomerSignal,
@@ -88,6 +90,7 @@ async function requestJson<T>(
       signal: controller.signal,
     });
     if (!response.ok) throw new Error(await parseError(response));
+    if (response.status === 204) return undefined as T;
     return (await response.json()) as T;
   } catch (error) {
     if (timedOut) throw new Error("Request timed out. Please try again.");
@@ -166,6 +169,8 @@ export const api = {
     payload: { name: string; industry?: string },
     signal?: AbortSignal,
   ) => postJson<Client>("/clients", payload, signal),
+  deleteClient: (clientId: number, signal?: AbortSignal) =>
+    requestJson<void>(`/clients/${clientId}`, { method: "DELETE" }, signal),
 
   uploadDataset: async (
     clientId: number,
@@ -270,6 +275,18 @@ export const api = {
       signal,
     ),
 
+  generateCampaign: (
+    clientId: number,
+    payload: CampaignGenerateInput,
+    signal?: AbortSignal,
+  ) =>
+    postJson<CampaignGenerationResponse>(
+      `/clients/${clientId}/campaigns/generate`,
+      payload,
+      signal,
+      120_000,
+    ),
+
   listCampaigns: (clientId: number, signal?: AbortSignal) =>
     getJson<PersistedCampaign[]>(`/clients/${clientId}/campaigns`, signal),
 
@@ -292,6 +309,17 @@ export const api = {
     const suffix = query.size > 0 ? `?${query.toString()}` : "";
     return getJson<CampaignCalendarItem[]>(`/calendar${suffix}`, signal);
   },
+
+  updateCalendarItemStatus: (
+    itemId: number,
+    status: CampaignCalendarItem["status"],
+    signal?: AbortSignal,
+  ) =>
+    patchJson<CampaignCalendarItem>(
+      `/calendar/${itemId}/status`,
+      { status },
+      signal,
+    ),
 
   getCampaign: (
     clientId: number,

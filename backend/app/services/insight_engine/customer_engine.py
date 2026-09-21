@@ -91,7 +91,6 @@ class CustomerInsightEngine:
         self._datasets = DatasetRepository(db)
         self._analysis = AnalysisRepository(db)
         settings = get_settings()
-        self._max_signals = settings.analysis_max_signals
         self._max_input_chars = settings.analysis_max_input_chars
 
     def analyse(self, client_id: int, dataset_id: int) -> AnalysisOutput:
@@ -130,14 +129,6 @@ class CustomerInsightEngine:
         signals = self._analysis.signals_for_dataset(dataset_id)
         if not signals:
             raise EmptyDatasetError(f"Dataset {dataset_id} has no customer signals.")
-
-        signal_count = len(signals)
-        if signal_count > self._max_signals:
-            raise AnalysisInputLimitError(
-                f"Dataset {dataset_id} contains {signal_count} signals; "
-                f"the per-analysis limit is {self._max_signals}. "
-                "Use a smaller dataset before running AI analysis."
-            )
 
         input_chars = sum(len(signal.text) for signal in signals)
         if input_chars > self._max_input_chars:

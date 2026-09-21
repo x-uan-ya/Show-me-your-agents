@@ -9,7 +9,12 @@ from app.models.analysis_run import AnalysisRun
 from app.models.campaign import Campaign, CampaignApproval, CampaignContentItem
 from app.models.customer_insight import CustomerInsight
 from app.models.marketing_brief import MarketingBrief
-from app.schemas.campaign import CampaignCreate, CampaignStatusUpdate, MarketingBriefWrite
+from app.schemas.campaign import (
+    CampaignContentStatusUpdate,
+    CampaignCreate,
+    CampaignStatusUpdate,
+    MarketingBriefWrite,
+)
 
 
 class CampaignReferenceError(ValueError):
@@ -96,6 +101,30 @@ class CampaignRepository:
             Campaign.client_id == client_id,
         )
         return self._db.scalars(stmt).first()
+
+    def get_calendar_item(
+        self, item_id: int, client_id: int | None = None
+    ) -> CampaignContentItem | None:
+        stmt = (
+            select(CampaignContentItem)
+            .join(CampaignContentItem.campaign)
+            .options(joinedload(CampaignContentItem.campaign).joinedload(Campaign.client))
+            .where(CampaignContentItem.id == item_id)
+        )
+        if client_id is not None:
+            stmt = stmt.where(Campaign.client_id == client_id)
+        return self._db.scalars(stmt).first()
+
+    def update_calendar_item_status(
+        self,
+        item: CampaignContentItem,
+        payload: CampaignContentStatusUpdate,
+    ) -> CampaignContentItem:
+        item.status = payload.status
+        self._db.commit()
+        persisted = self.get_calendar_item(item.id, item.campaign.client_id)
+        assert persisted is not None
+        return persisted
 
     def _validate_references(self, client_id: int, payload: CampaignCreate) -> MarketingBrief:
         brief = self._db.get(MarketingBrief, payload.marketing_brief_id)

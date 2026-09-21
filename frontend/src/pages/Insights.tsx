@@ -23,6 +23,7 @@ import { looksSynthetic } from "../utils/format";
 interface Props {
   clientId: number | null;
   datasetId: number | null;
+  initialInsights: Insight[];
   onClientChange: (id: number | null) => void;
   onDatasetChange: (id: number | null) => void;
   onNavigate: (view: AppView) => void;
@@ -57,6 +58,7 @@ function isReady(dataset: Dataset): boolean {
 export function Insights({
   clientId,
   datasetId,
+  initialInsights,
   onClientChange,
   onDatasetChange,
   onNavigate,
@@ -66,10 +68,10 @@ export function Insights({
   const [datasetStatus, setDatasetStatus] = useState<DatasetStatus>("idle");
   const [datasetError, setDatasetError] = useState<string | null>(null);
 
-  const [status, setStatus] = useState<Status>("idle");
+  const [status, setStatus] = useState<Status>(initialInsights.length > 0 ? "ready" : "idle");
   const [error, setError] = useState<string | null>(null);
   const [evidenceWarning, setEvidenceWarning] = useState<string | null>(null);
-  const [insights, setInsights] = useState<Insight[]>([]);
+  const [insights, setInsights] = useState<Insight[]>(initialInsights);
   const [analysisRun, setAnalysisRun] = useState<AnalysisRun | null>(null);
   const [rejected, setRejected] = useState<string[]>([]);
   const [signalsById, setSignalsById] = useState<Map<number, CustomerSignal>>(
@@ -96,7 +98,16 @@ export function Insights({
   useEffect(() => {
     datasetController.current?.abort();
     analysisController.current?.abort();
-    clearResults();
+    const canRestore = clientId !== null && initialInsights.length > 0 &&
+      initialInsights.every((insight) => insight.client_id === clientId);
+    if (canRestore) {
+      setStatus("ready");
+      setInsights(initialInsights);
+      setError(null);
+      setEvidenceWarning(null);
+    } else {
+      clearResults();
+    }
     setDatasets([]);
     setDatasetError(null);
 
@@ -119,6 +130,14 @@ export function Insights({
           !items.some((item) => item.id === datasetId && isReady(item))
         ) {
           onDatasetChange(null);
+        }
+        if (canRestore) {
+          void api.listSignals(clientId, controller.signal).then((signals) => {
+            if (controller.signal.aborted) return;
+            const map = new Map<number, CustomerSignal>();
+            signals.forEach((signal) => map.set(signal.id, signal));
+            setSignalsById(map);
+          }).catch(() => undefined);
         }
       })
       .catch((reason) => {
@@ -412,33 +431,6 @@ export function Insights({
           )}
         </section>
 
-        <section>
-          <div className="mb-4 flex items-end justify-between gap-3">
-            <div>
-              <p className="section-kicker">Insight areas</p>
-              <h2 className="mt-1 text-2xl font-semibold text-white">What we look for</h2>
-            </div>
-            <span className="text-sm text-slate-400">8 areas</span>
-          </div>
-          <div className="insight-area-grid">
-            {INSIGHT_CATEGORIES.map((category) => (
-              <article key={category} className="insight-area-card">
-                <span className="insight-area-icon" aria-hidden="true">
-                  {INSIGHT_SUMMARY[category].icon}
-                </span>
-                <div className="min-w-0">
-                  <p className="text-base font-semibold text-white">
-                    {INSIGHT_SUMMARY[category].phrase}
-                  </p>
-                  <p className="mt-1 text-xs uppercase tracking-wide text-slate-400">
-                    {CATEGORY_LABELS[category]}
-                  </p>
-                </div>
-              </article>
-            ))}
-          </div>
-        </section>
-
         {status === "loading" && (
           <div role="status" className="analysis-progress">
             <span className="analysis-pulse" aria-hidden />
@@ -539,6 +531,35 @@ export function Insights({
           </section>
         )}
 
+        {status !== "ready" && (
+          <section aria-labelledby="insight-areas-title">
+            <div className="mb-4 flex items-end justify-between gap-3">
+              <div>
+                <p className="section-kicker">Insight areas</p>
+                <h2 id="insight-areas-title" className="mt-1 text-2xl font-semibold text-white">What we look for</h2>
+              </div>
+              <span className="text-sm text-slate-400">8 areas</span>
+            </div>
+            <div className="insight-area-grid">
+              {INSIGHT_CATEGORIES.map((category) => (
+                <article key={category} className="insight-area-card">
+                  <span className="insight-area-icon" aria-hidden="true">
+                    {INSIGHT_SUMMARY[category].icon}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-base font-semibold text-white">
+                      {INSIGHT_SUMMARY[category].phrase}
+                    </p>
+                    <p className="mt-1 text-xs uppercase tracking-wide text-slate-400">
+                      {CATEGORY_LABELS[category]}
+                    </p>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </section>
+        )}
+
         {status === "ready" && insights.length === 0 && (
           <div className="surface-card p-8 text-center">
             <h2 className="text-lg font-semibold text-white">No insights yet</h2>
@@ -549,8 +570,20 @@ export function Insights({
         )}
 
         {status === "ready" && insights.length > 0 && (
-          <>
-            <section className="surface-card insight-toolbar p-5 sm:p-6">
+          <details className="surface-card insight-results-panel">
+            <summary className="insight-results-heading">
+              <div>
+                <p className="section-kicker">Customer insights</p>
+                <h2>Evidence-backed findings</h2>
+              </div>
+              <div className="insight-results-meta">
+                <span>{filtered.length} of {insights.length} shown</span>
+                <span className="collapse-chevron" aria-hidden="true">⌄</span>
+              </div>
+            </summary>
+
+            <div className="insight-results-body">
+            <section className="insight-toolbar">
               <div className="mb-4 flex items-center justify-between gap-3">
                 <h2 className="text-sm font-semibold text-white">Filter insights</h2>
                 <span className="text-sm text-slate-400">
@@ -596,7 +629,8 @@ export function Insights({
                 })}
               </div>
             )}
-          </>
+            </div>
+          </details>
         )}
       </div>
 

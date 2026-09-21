@@ -6,19 +6,21 @@ import { CampaignPlan } from "./pages/CampaignPlan";
 import { CampaignCalendar } from "./pages/CampaignCalendar";
 import { ImportData } from "./pages/ImportData";
 import { Insights } from "./pages/Insights";
-import { SourcesMethodology } from "./pages/SourcesMethodology";
 import { TrialVsRetention } from "./pages/TrialVsRetention";
 import {
   EMPTY_MARKETING_BRIEF,
   type AppView,
+  type CampaignCalendarItem,
   type Insight,
   type MarketingBrief,
 } from "./types";
 import { hashForView, viewFromHash } from "./utils/navigation";
+import { CAMPAIGN_CALENDAR_UPDATED_EVENT, clientActivityColorStyle } from "./utils/campaignColors";
 
 const CLIENT_STORAGE_KEY = "customer-intelligence:selected-client";
 const CLIENT_NAME_STORAGE_KEY = "customer-intelligence:selected-client-name";
 const BRIEF_STORAGE_PREFIX = "customer-intelligence:brief:";
+const ANALYSIS_STORAGE_PREFIX = "customer-intelligence:analysis:";
 
 const TABS: { id: AppView; label: string; shortLabel: string }[] = [
   { id: "dashboard", label: "Overview", shortLabel: "Overview" },
@@ -31,7 +33,6 @@ const TABS: { id: AppView; label: string; shortLabel: string }[] = [
     shortLabel: "Trial vs retention",
   },
   { id: "campaign-calendar", label: "Campaign calendar", shortLabel: "Calendar" },
-  { id: "sources", label: "Sources & methodology", shortLabel: "Sources" },
 ];
 
 const NAV_ICON_PATHS: Record<AppView, string> = {
@@ -41,7 +42,6 @@ const NAV_ICON_PATHS: Record<AppView, string> = {
   "campaign-plan": "m4 12 16-8-6 16-3-6-7-2Zm7 2 9-10",
   "trial-retention": "M7 7h10m0 0-3-3m3 3-3 3M17 17H7m0 0 3 3m-3-3 3-3",
   "campaign-calendar": "M5 4h14v16H5zM8 2v4m8-4v4M5 9h14M8 13h3m2 0h3M8 17h3",
-  sources: "M6 3h9l4 4v14H6zM14 3v5h5M9 13h6M9 17h6M9 9h2",
 };
 
 function NavIcon({ view }: { view: AppView }) {
@@ -68,7 +68,7 @@ function BrandMark() {
   );
 }
 
-function WorkspaceCalendar() {
+function WorkspaceCalendar({ refreshKey }: { refreshKey: AppView }) {
   const today = new Date();
   const month = today.toLocaleString("en-US", { month: "long" });
   const year = today.getFullYear();
@@ -77,6 +77,33 @@ function WorkspaceCalendar() {
   const days = Array.from({ length: firstDay + daysInMonth }, (_, index) =>
     index < firstDay ? null : index - firstDay + 1,
   );
+  const [campaignItems, setCampaignItems] = useState<CampaignCalendarItem[]>([]);
+
+  useEffect(() => {
+    let controller: AbortController | null = null;
+    const loadItems = () => {
+      controller?.abort();
+      controller = new AbortController();
+      api.listCalendarItems({}, controller.signal)
+        .then(setCampaignItems)
+        .catch((reason) => {
+          if (!isAbortError(reason)) setCampaignItems([]);
+        });
+    };
+    loadItems();
+    window.addEventListener(CAMPAIGN_CALENDAR_UPDATED_EVENT, loadItems);
+    return () => {
+      controller?.abort();
+      window.removeEventListener(CAMPAIGN_CALENDAR_UPDATED_EVENT, loadItems);
+    };
+  }, [refreshKey]);
+
+  const clientColorById = new Map(
+    Array.from(new Set(campaignItems.map((item) => item.client_id)))
+      .sort((left, right) => left - right)
+      .map((id, index) => [id, index % 6]),
+  );
+  const monthPrefix = `${year}-${String(today.getMonth() + 1).padStart(2, "0")}-`;
 
   return (
     <div className="workspace-calendar" aria-label={`${month} ${year} calendar`}>
@@ -90,11 +117,22 @@ function WorkspaceCalendar() {
         ))}
       </div>
       <div className="workspace-calendar-days">
-        {days.map((day, index) => (
-          <span key={index} className={day === today.getDate() ? "is-today" : ""}>
-            {day ?? ""}
-          </span>
-        ))}
+        {days.map((day, index) => {
+          const date = day === null ? null : `${monthPrefix}${String(day).padStart(2, "0")}`;
+          const dayItems = date === null ? [] : campaignItems.filter((item) => item.publish_date === date);
+          return (
+            <span key={index} className={`${day === today.getDate() ? "is-today" : ""} ${dayItems.length > 0 ? "has-activity" : ""}`}>
+              <b>{day ?? ""}</b>
+              {dayItems.length > 0 && (
+                <i className="workspace-calendar-activity-dots" aria-label={`${dayItems.length} campaign activities`}>
+                  {dayItems.slice(0, 3).map((item) => (
+                    <em key={item.id} style={clientActivityColorStyle(clientColorById.get(item.client_id) ?? 0)} />
+                  ))}
+                </i>
+              )}
+            </span>
+          );
+        })}
       </div>
     </div>
   );
@@ -128,18 +166,41 @@ function storedBrief(clientId: number | null): MarketingBrief {
   }
 }
 
+function storedAnalysis(clientId: number | null): { datasetId: number | null; insights: Insight[] } {
+  if (clientId === null) return { datasetId: null, insights: [] };
+  try {
+    const raw = window.localStorage.getItem(`${ANALYSIS_STORAGE_PREFIX}${clientId}`);
+    if (!raw) return { datasetId: null, insights: [] };
+    const parsed = JSON.parse(raw) as { datasetId?: unknown; insights?: unknown };
+    return {
+      datasetId: typeof parsed.datasetId === "number" ? parsed.datasetId : null,
+      insights: Array.isArray(parsed.insights) ? parsed.insights as Insight[] : [],
+    };
+  } catch {
+    return { datasetId: null, insights: [] };
+  }
+}
+
+function saveAnalysis(clientId: number | null, datasetId: number | null, insights: Insight[]) {
+  if (clientId === null) return;
+  window.localStorage.setItem(
+    `${ANALYSIS_STORAGE_PREFIX}${clientId}`,
+    JSON.stringify({ datasetId, insights }),
+  );
+}
+
 export default function App() {
   const [view, setView] = useState<AppView>(() =>
     viewFromHash(window.location.hash),
   );
   const [clientId, setClientId] = useState<number | null>(storedClientId);
-  const [datasetId, setDatasetId] = useState<number | null>(null);
+  const [datasetId, setDatasetId] = useState<number | null>(() => storedAnalysis(storedClientId()).datasetId);
   const [brief, setBrief] = useState<MarketingBrief>(() =>
     storedBrief(storedClientId()),
   );
   const [briefHydratedClientId, setBriefHydratedClientId] = useState<number | null>(null);
   const clientName = clientId === null ? "" : window.localStorage.getItem(CLIENT_NAME_STORAGE_KEY) ?? "";
-  const [latestInsights, setLatestInsights] = useState<Insight[]>([]);
+  const [latestInsights, setLatestInsights] = useState<Insight[]>(() => storedAnalysis(storedClientId()).insights);
   const hasMounted = useRef(false);
   const briefEditVersion = useRef(0);
 
@@ -234,9 +295,10 @@ export default function App() {
 
   const selectClient = (nextClientId: number | null) => {
     if (clientId !== nextClientId) {
+      const restored = storedAnalysis(nextClientId);
       briefEditVersion.current += 1;
-      setDatasetId(null);
-      setLatestInsights([]);
+      setDatasetId(restored.datasetId);
+      setLatestInsights(restored.insights);
       setBriefHydratedClientId(null);
       setBrief(storedBrief(nextClientId));
     }
@@ -262,7 +324,19 @@ export default function App() {
   const openImportedDataset = (nextDatasetId: number) => {
     setDatasetId(nextDatasetId);
     setLatestInsights([]);
+    saveAnalysis(clientId, nextDatasetId, []);
     navigate("insights");
+  };
+
+  const changeDataset = (nextDatasetId: number | null) => {
+    setDatasetId(nextDatasetId);
+    setLatestInsights([]);
+    saveAnalysis(clientId, nextDatasetId, []);
+  };
+
+  const storeLatestInsights = (nextInsights: Insight[]) => {
+    setLatestInsights(nextInsights);
+    saveAnalysis(clientId, datasetId, nextInsights);
   };
 
   return (
@@ -290,7 +364,7 @@ export default function App() {
             <i aria-hidden="true" />
             Marketing campaign calendar
           </span>
-          <WorkspaceCalendar />
+          <WorkspaceCalendar refreshKey={view} />
         </div>
 
         <nav aria-label="Primary navigation" className="app-nav">
@@ -383,10 +457,11 @@ export default function App() {
             <Insights
               clientId={clientId}
               datasetId={datasetId}
+              initialInsights={latestInsights}
               onClientChange={selectClient}
-              onDatasetChange={setDatasetId}
+              onDatasetChange={changeDataset}
               onNavigate={navigate}
-              onAnalysisComplete={setLatestInsights}
+              onAnalysisComplete={storeLatestInsights}
             />
           )}
           {view === "campaign-plan" && (
@@ -407,7 +482,6 @@ export default function App() {
           {view === "campaign-calendar" && (
             <CampaignCalendar onNavigate={navigate} />
           )}
-          {view === "sources" && <SourcesMethodology />}
         </div>
       </div>
     </div>

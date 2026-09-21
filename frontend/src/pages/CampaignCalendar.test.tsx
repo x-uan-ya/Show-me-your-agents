@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { api } from "../api/client";
-import type { CampaignCalendarItem } from "../types";
+import type { CampaignCalendarItem, Client } from "../types";
 import { CampaignCalendar } from "./CampaignCalendar";
 
 function localDate(day: number, monthOffset = 0): string {
@@ -65,6 +65,11 @@ const records: CampaignCalendarItem[] = [
   },
 ];
 
+const clients: Client[] = [
+  { id: 1, name: "Sunny Cafe", industry: "F&B", description: null, created_at: "", updated_at: "" },
+  { id: 2, name: "TechStart", industry: "Technology", description: null, created_at: "", updated_at: "" },
+];
+
 function deferred<T>() {
   let resolve!: (value: T) => void;
   const promise = new Promise<T>((fulfill) => { resolve = fulfill; });
@@ -74,6 +79,7 @@ function deferred<T>() {
 describe("CampaignCalendar", () => {
   beforeEach(() => {
     vi.spyOn(api, "listCalendarItems").mockResolvedValue(records);
+    vi.spyOn(api, "listClients").mockResolvedValue(clients);
   });
 
   afterEach(() => vi.restoreAllMocks());
@@ -85,44 +91,48 @@ describe("CampaignCalendar", () => {
 
     expect(screen.getByRole("status")).toHaveTextContent("Loading campaign schedule");
     request.resolve(records);
-    expect(await screen.findByText("Skip the Queue Reel")).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: /Sunny Cafe: Skip the Queue Reel/ })).toBeInTheDocument();
   });
 
-  it("renders real campaigns, clients, channels, dates and statuses as separate items", async () => {
+  it("renders customer-coloured calendar dots and reveals details only after a click", async () => {
     render(<CampaignCalendar onNavigate={vi.fn()} />);
 
-    expect(await screen.findByText("Skip the Queue Reel")).toBeInTheDocument();
-    expect(screen.getByText("Lunch Promotion")).toBeInTheDocument();
-    expect(screen.getAllByText(/Lunch Rush Recovery · Sunny Cafe/)).toHaveLength(2);
-    expect(screen.getByText(/Faster Onboarding · TechStart · TikTok/)).toBeInTheDocument();
+    const firstSunnyDot = await screen.findByRole("button", { name: /Sunny Cafe: Skip the Queue Reel/ });
+    const secondSunnyDot = screen.getByRole("button", { name: /Sunny Cafe: Lunch Promotion/ });
+    const techDot = screen.getByRole("button", { name: /TechStart: Fast Pickup Video/ });
+    expect(firstSunnyDot.style.backgroundColor).toBe(secondSunnyDot.style.backgroundColor);
+    expect(firstSunnyDot.style.backgroundColor).not.toBe(techDot.style.backgroundColor);
+    expect(screen.queryByText("Skip the Queue Reel")).not.toBeInTheDocument();
+
+    fireEvent.click(firstSunnyDot);
+    expect(screen.getByText("Skip the Queue Reel")).toBeInTheDocument();
+    expect(screen.getByText(/Lunch Rush Recovery · Sunny Cafe · Instagram/)).toBeInTheDocument();
     expect(screen.getByText(localDateLabel(3))).toHaveAttribute("datetime", localDate(3));
-    expect(screen.getByText(localDateLabel(5))).toHaveAttribute("datetime", localDate(5));
-    expect(screen.getByText("Scheduled", { selector: "span" })).toBeInTheDocument();
-    expect(screen.getByText("Published", { selector: "span" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Publishing status for Skip the Queue Reel")).toHaveValue("scheduled");
   });
 
   it("filters independently by real client, channel and status values", async () => {
     render(<CampaignCalendar onNavigate={vi.fn()} />);
-    await screen.findByText("Skip the Queue Reel");
+    await screen.findByRole("button", { name: /Sunny Cafe: Skip the Queue Reel/ });
 
     fireEvent.change(screen.getByLabelText("Client"), { target: { value: "1" } });
-    expect(screen.getByText("Lunch Promotion")).toBeInTheDocument();
-    expect(screen.queryByText("Fast Pickup Video")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Sunny Cafe: Lunch Promotion/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /TechStart: Fast Pickup Video/ })).not.toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText("Client"), { target: { value: "all" } });
     fireEvent.change(screen.getByLabelText("Channel"), { target: { value: "Email" } });
-    expect(screen.getByText("Lunch Promotion")).toBeInTheDocument();
-    expect(screen.queryByText("Skip the Queue Reel")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Sunny Cafe: Lunch Promotion/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Sunny Cafe: Skip the Queue Reel/ })).not.toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText("Channel"), { target: { value: "all" } });
     fireEvent.change(screen.getByLabelText("Status"), { target: { value: "published" } });
-    expect(screen.getByText("Fast Pickup Video")).toBeInTheDocument();
-    expect(screen.queryByText("Lunch Promotion")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /TechStart: Fast Pickup Video/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Sunny Cafe: Lunch Promotion/ })).not.toBeInTheDocument();
   });
 
   it("loads previous and next months from the backend", async () => {
     render(<CampaignCalendar onNavigate={vi.fn()} />);
-    await screen.findByText("Skip the Queue Reel");
+    await screen.findByRole("button", { name: /Sunny Cafe: Skip the Queue Reel/ });
 
     fireEvent.click(screen.getByRole("button", { name: "Previous month" }));
     await waitFor(() => expect(api.listCalendarItems).toHaveBeenCalledTimes(2));
@@ -153,6 +163,6 @@ describe("CampaignCalendar", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("Unable to load campaign schedule.");
     expect(screen.queryByText("Harbour Brew")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
-    expect(await screen.findByText("Skip the Queue Reel")).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: /Sunny Cafe: Skip the Queue Reel/ })).toBeInTheDocument();
   });
 });

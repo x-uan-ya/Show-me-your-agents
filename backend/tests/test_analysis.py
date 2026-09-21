@@ -160,22 +160,14 @@ def test_empty_dataset(env):
     assert resp.status_code == 422
 
 
-def test_signal_limit_rejects_before_provider_call(env, monkeypatch):
+def test_signal_count_is_not_limited(env):
     client, session_factory, stub = env
-    monkeypatch.setattr(get_settings(), "analysis_max_signals", 1)
-    cid, did, _ = _seed(session_factory, ["First signal.", "Second signal."])
+    cid, did, _ = _seed(session_factory, [f"Signal {index}." for index in range(201)])
 
     resp = client.post(f"/api/clients/{cid}/analyse", json={"dataset_id": did})
 
-    assert resp.status_code == 422
-    assert "contains 2 signals" in resp.json()["detail"]
-    assert "limit is 1" in resp.json()["detail"]
-    assert stub.calls == 0
-    session = session_factory()
-    try:
-        assert session.query(AnalysisRun).count() == 0
-    finally:
-        session.close()
+    assert resp.status_code == 200
+    assert stub.calls == 1
 
 
 def test_character_limit_rejects_before_provider_call(env, monkeypatch):

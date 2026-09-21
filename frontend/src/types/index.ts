@@ -20,8 +20,7 @@ export type AppView =
   | "insights"
   | "campaign-plan"
   | "trial-retention"
-  | "campaign-calendar"
-  | "sources";
+  | "campaign-calendar";
 
 export interface MarketingBrief {
   objective: string;
@@ -63,6 +62,15 @@ export interface CampaignCreateInput {
   end_date?: string | null;
   strategy_payload: Record<string, unknown>;
   content_items: CampaignContentItemInput[];
+}
+
+export interface CampaignGenerateInput {
+  marketing_brief_id: number;
+  analysis_run_id?: number | null;
+  primary_insight_id?: number | null;
+  supporting_insight_ids: number[];
+  start_date?: string | null;
+  gap?: CampaignGapResponse | null;
 }
 
 export interface PersistedCampaignContentItem extends CampaignContentItemInput {
@@ -132,6 +140,11 @@ export interface PersistedCampaign {
   approval: CampaignApproval | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface CampaignGenerationResponse {
+  campaign: PersistedCampaign;
+  gap: CampaignGapResponse;
 }
 
 export interface CampaignParameter {

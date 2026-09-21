@@ -14,6 +14,31 @@ interface Props {
 
 type TaxonomyState = "loading" | "ready" | "error";
 
+type WhyIconName = "shield" | "chart" | "link" | "users";
+
+function WhyIcon({ name }: { name: WhyIconName }) {
+  const common = {
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: 1.8,
+    strokeLinecap: "round" as const,
+    strokeLinejoin: "round" as const,
+    "aria-hidden": true,
+  };
+
+  if (name === "shield") {
+    return <svg {...common}><path d="M12 3 19 6v5c0 4.7-2.9 8.1-7 10-4.1-1.9-7-5.3-7-10V6l7-3Z" /><path d="m9 12 2 2 4-4" /></svg>;
+  }
+  if (name === "chart") {
+    return <svg {...common}><path d="M4 19V5" /><path d="M4 19h16" /><path d="m7 15 3-4 3 2 4-6" /><path d="M17 7h2v2" /></svg>;
+  }
+  if (name === "link") {
+    return <svg {...common}><path d="m10 13.8-1.4 1.4a3.2 3.2 0 0 1-4.5-4.5l2.2-2.2a3.2 3.2 0 0 1 4.5 0" /><path d="m14 10.2 1.4-1.4a3.2 3.2 0 0 1 4.5 4.5l-2.2 2.2a3.2 3.2 0 0 1-4.5 0" /><path d="m8.5 15.5 7-7" /></svg>;
+  }
+  return <svg {...common}><circle cx="9" cy="8" r="3" /><path d="M3 19c.5-3 2.5-5 6-5s5.5 2 6 5" /><circle cx="17" cy="9" r="2.3" /><path d="M15 14c2.8-.2 4.7 1.4 5 4" /></svg>;
+}
+
 const WORKFLOW: Array<{
   step: string;
   title: string;
@@ -41,6 +66,13 @@ const WORKFLOW: Array<{
     description: "Turn the brief and validated insights into strategy, ideas and a schedule.",
     action: "Build campaign",
     view: "campaign-plan",
+  },
+  {
+    step: "04",
+    title: "Plan the calendar",
+    description: "Review campaign dates, channels and content direction in one calendar.",
+    action: "Open calendar",
+    view: "campaign-calendar",
   },
 ];
 
@@ -92,25 +124,43 @@ export function Dashboard({ selectedClientId, selectedClientName, hasInsights = 
               </div>
             </div>
 
-            <ol className="workspace-path" aria-label="Evidence-led planning path">
-              {["Evidence", "Insight", "Strategy", "Campaign"].map((label, index) => (
+            <ol className="workspace-path" aria-label="Campaign workflow path">
+              {[
+                ["Data", "Data-driven analysis"],
+                ["Insight", "Find marketing insights"],
+                ["Campaign", "Auto-generate campaigns"],
+                ["Planning", "Manage customer activities"],
+              ].map(([label, description], index) => (
                 <li key={label}>
                   <span>{String(index + 1).padStart(2, "0")}</span>
                   <div>
                     <strong>{label}</strong>
-                    <small>
-                      {[
-                        "Collect signals",
-                        "Find patterns",
-                        "Choose direction",
-                        "Review the plan",
-                      ][index]}
-                    </small>
+                    <small>{description}</small>
                   </div>
                 </li>
               ))}
             </ol>
           </div>
+
+          <section className="why-intelligence" aria-label="Why campaign intelligence">
+            <p className="section-kicker">Why campaign intelligence</p>
+            <div className="why-intelligence-grid">
+              {[
+                ["shield", "Evidence-led", "Every insight is linked to original customer data."],
+                ["chart", "Dynamic", "Real-time updates as new signals come in."],
+                ["link", "Traceable", "Track every recommendation to its source."],
+                ["users", "Actionable", "Turn insights into campaigns, fast."],
+              ].map(([icon, title, copy]) => (
+                <article key={title} className="why-intelligence-card">
+                  <span className="why-intelligence-icon"><WhyIcon name={icon as WhyIconName} /></span>
+                  <div>
+                    <strong>{title}</strong>
+                    <p>{copy}</p>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </section>
 
           <aside className="command-status-card" aria-label="Workspace status">
             <div className="command-status-heading">
@@ -150,7 +200,19 @@ export function Dashboard({ selectedClientId, selectedClientName, hasInsights = 
               </div>
             </div>
 
-            <div className="next-step-panel">
+            <div
+              className="next-step-panel cursor-pointer"
+              role="link"
+              tabIndex={0}
+              onClick={() => onNavigate(selectedClientId ? "insights" : "import")}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  onNavigate(selectedClientId ? "insights" : "import");
+                }
+              }}
+              aria-label={selectedClientId ? "Choose a ready dataset" : "Select or add an SME client"}
+            >
               <span className="next-step-icon" aria-hidden="true">↗</span>
               <div>
                 <small>Recommended next step</small>
@@ -179,7 +241,7 @@ export function Dashboard({ selectedClientId, selectedClientName, hasInsights = 
               </span>
             </div>
           </div>
-          <div className="grid gap-4 xl:grid-cols-3">
+          <div className="grid gap-4 xl:grid-cols-4">
             {WORKFLOW.map((item) => (
               <article
                 key={item.step}

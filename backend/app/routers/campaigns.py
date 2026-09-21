@@ -10,12 +10,21 @@ from app.models.client import Client
 from app.repositories.campaign_repository import CampaignReferenceError, CampaignRepository
 from app.schemas.campaign import (
     CampaignCalendarItemRead,
+    CampaignContentStatusUpdate,
     CampaignCreate,
+    CampaignGenerateRequest,
+    CampaignGenerationRead,
     CampaignRead,
     CampaignStatusUpdate,
     ContentStatus,
     MarketingBriefRead,
     MarketingBriefWrite,
+)
+from app.services.ai.base import AIProvider
+from app.services.ai.factory import get_ai_provider
+from app.services.campaign_generation.service import (
+    CampaignGenerationError,
+    CampaignGenerationService,
 )
 
 router = APIRouter(prefix="/clients/{client_id}", tags=["campaigns"])
@@ -77,6 +86,37 @@ def list_calendar_items(
     ]
 
 
+@calendar_router.patch("/{item_id}/status", response_model=CampaignCalendarItemRead)
+def update_calendar_item_status(
+    item_id: int,
+    payload: CampaignContentStatusUpdate,
+    client_id: int | None = Query(default=None, ge=1),
+    db: Session = Depends(get_db),
+) -> CampaignCalendarItemRead:
+    """Simulate scheduling or publishing without calling an external platform."""
+    if client_id is not None:
+        _require_client(db, client_id)
+    item = CampaignRepository(db).get_calendar_item(item_id, client_id)
+    if item is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Calendar item not found")
+    item = CampaignRepository(db).update_calendar_item_status(item, payload)
+    return CampaignCalendarItemRead(
+        id=item.id,
+        campaign_id=item.campaign_id,
+        campaign_name=item.campaign.name,
+        campaign_status=item.campaign.status,
+        client_id=item.campaign.client_id,
+        client_name=item.campaign.client.name,
+        channel=item.channel,
+        publish_date=item.publish_date,
+        status=item.status,
+        content=item.content,
+        content_type=item.content_type,
+        cta=item.cta,
+        owner=item.owner,
+    )
+
+
 @router.put("/marketing-brief", response_model=MarketingBriefRead)
 def save_marketing_brief(
     client_id: int,
@@ -114,6 +154,33 @@ def create_campaign(
     except CampaignReferenceError as exc:
         raise HTTPException(422, str(exc)) from exc
     return CampaignRead.model_validate(campaign)
+
+
+@router.post(
+    "/campaigns/generate",
+    response_model=CampaignGenerationRead,
+    status_code=status.HTTP_201_CREATED,
+)
+def generate_campaign(
+    client_id: int,
+    payload: CampaignGenerateRequest,
+    db: Session = Depends(get_db),
+    provider: AIProvider = Depends(get_ai_provider),
+) -> CampaignGenerationRead:
+    """Generate the campaign and save it in one backend-owned workflow."""
+    _require_client(db, client_id)
+    try:
+        campaign, gap = CampaignGenerationService(db, provider).generate(
+            client_id, payload
+        )
+    except CampaignGenerationError as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
+    except CampaignReferenceError as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
+    return CampaignGenerationRead(
+        campaign=CampaignRead.model_validate(campaign),
+        gap=gap,
+    )
 
 
 @router.get("/campaigns", response_model=list[CampaignRead])

@@ -429,8 +429,12 @@
   .workspace-calendar-weekdays,
   .workspace-calendar-days { @apply grid grid-cols-7 gap-y-2 text-center; }
   .workspace-calendar-weekdays { @apply mb-2 text-[10px] font-semibold text-slate-500; }
-  .workspace-calendar-days span { @apply grid h-5 place-items-center text-[10px] text-slate-400; }
+  .workspace-calendar-days span { @apply relative grid h-7 place-items-center text-[10px] text-slate-400; }
+  .workspace-calendar-days span b { @apply font-normal; }
   .workspace-calendar-days span.is-today { @apply rounded-full bg-cyan-400 font-bold text-slate-950; }
+  .workspace-calendar-days span.is-today b { @apply font-bold; }
+  .workspace-calendar-activity-dots { @apply absolute -bottom-0.5 left-1/2 flex -translate-x-1/2 gap-0.5; }
+  .workspace-calendar-activity-dots em { @apply block h-1.5 w-1.5 rounded-full; }
 
   .sidebar-context-value {
     @apply mt-2 block overflow-hidden text-ellipsis text-sm font-semibold text-white;
@@ -753,6 +757,36 @@
     box-shadow: 0 18px 50px rgba(0, 5, 15, 0.28);
   }
 
+  .insight-results-panel {
+    overflow: hidden;
+    padding: 0;
+  }
+  .insight-results-heading {
+    @apply flex cursor-pointer list-none items-center justify-between gap-4 p-5 sm:p-6;
+    border-bottom: 1px solid rgba(40, 82, 124, 0.48);
+  }
+  .insight-results-heading::-webkit-details-marker { display: none; }
+  .insight-results-heading h2 { @apply mt-1 text-xl font-semibold text-white; }
+  .insight-results-meta { @apply flex items-center gap-4 text-sm text-slate-400; }
+  .insight-results-panel[open] .collapse-chevron { transform: rotate(180deg); }
+  .insight-results-body { @apply p-5 sm:p-6; }
+  .insight-results-body .insight-toolbar {
+    border: 0;
+    background: transparent;
+    padding: 0 0 1.5rem;
+    box-shadow: none;
+  }
+  .insight-results-body .insight-card {
+    border-radius: 0;
+    border-width: 0 0 1px;
+    background: transparent;
+    box-shadow: none;
+  }
+  .insight-results-body .insight-card:hover {
+    background: rgba(47, 140, 255, 0.045);
+    box-shadow: none;
+  }
+
   .dashboard-command {
     @apply grid gap-5;
   }
@@ -781,7 +815,7 @@
   }
 
   .workspace-path li {
-    @apply flex min-w-0 items-center gap-3 rounded-2xl p-3;
+    @apply flex h-24 min-w-0 items-start gap-3 rounded-2xl p-3;
     border: 1px solid rgba(53, 98, 142, 0.46);
     background: rgba(2, 12, 26, 0.46);
   }
@@ -791,8 +825,12 @@
     color: #7ed4ff;
   }
 
-  .workspace-path strong { @apply block text-sm font-semibold text-white; }
-  .workspace-path small { @apply mt-0.5 block text-xs text-slate-400; }
+  .workspace-path strong {
+    @apply flex h-9 items-center text-sm font-semibold leading-5 text-white;
+  }
+  .workspace-path small {
+    @apply mt-0.5 block h-8 text-xs leading-4 text-slate-400;
+  }
 
   .insight-area-grid { @apply grid gap-3 sm:grid-cols-2; }
   .insight-area-card {
@@ -818,15 +856,21 @@
   }
   .journey-track { @apply relative mt-10 grid grid-cols-3 gap-4; }
   .journey-line {
-    @apply absolute left-[10%] right-[10%] top-4 h-2 rounded-full;
+    @apply absolute left-[10%] right-[10%] top-4 z-0 h-2 rounded-full;
     background: repeating-linear-gradient(90deg, rgba(148, 163, 184, 0.42) 0 2px, transparent 2px 11%);
     box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.22);
+  }
+  .journey-line-fill {
+    @apply absolute inset-y-0 left-0 block rounded-full;
+    background: repeating-linear-gradient(90deg, rgba(174, 184, 196, 0.62) 0 2px, #1b2532 2px 2.7%, rgba(174, 184, 196, 0.62) 2.7% 11%);
   }
   .journey-stage { @apply relative z-10 flex flex-col items-center gap-2 text-center; }
   .journey-stage strong { @apply mt-5 text-lg font-semibold text-white; }
   .journey-stage > span:last-child { @apply text-sm text-slate-400; }
   .journey-dot {
-    @apply h-8 w-8 rounded-full border-4;
+    @apply relative h-8 w-8 rounded-full border-4;
+    transform: scale(var(--journey-scale, 1));
+    opacity: var(--journey-opacity, 1);
     box-shadow: 0 0 0 5px rgba(148, 163, 184, 0.1);
   }
   .journey-dot.trial { @apply border-cyan-300 bg-cyan-300/70; }
@@ -839,6 +883,23 @@
     background: linear-gradient(165deg, rgba(15, 39, 68, 0.94), rgba(5, 18, 36, 0.96));
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 24px 70px rgba(0, 5, 15, 0.2);
   }
+
+  /* Keep this section on the same content grid as the hero above. */
+  .why-intelligence { @apply -mt-8 px-6 py-1 sm:px-8; }
+
+  .why-intelligence-grid { @apply mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4; }
+  .why-intelligence-card {
+    @apply flex min-w-0 items-start gap-3 rounded-2xl border p-3;
+    border-color: rgba(47, 140, 255, 0.34);
+    background: rgba(2, 12, 26, 0.42);
+  }
+  .why-intelligence-icon {
+    @apply grid h-10 w-10 shrink-0 place-items-center rounded-xl text-xl text-cyan-200;
+    background: rgba(47, 140, 255, 0.18);
+  }
+  .why-intelligence-icon svg { @apply h-6 w-6; }
+  .why-intelligence-card strong { @apply block text-sm font-semibold text-white; }
+  .why-intelligence-card p { @apply mt-1 text-xs leading-4 text-slate-400; }
 
   .command-status-heading {
     @apply flex items-start justify-between gap-4 border-b pb-5;
@@ -1129,10 +1190,86 @@
   .campaign-calendar-row strong { @apply mt-1 text-base font-semibold text-white; }
   .campaign-calendar-row small { @apply mt-1 text-sm text-slate-400; }
   .campaign-calendar-date { @apply text-xs font-bold uppercase tracking-[0.16em] text-cyan-300; }
+  .campaign-month-legend { @apply mb-4 flex flex-wrap gap-x-5 gap-y-2; }
+  .campaign-month-legend span { @apply flex items-center gap-2 text-xs text-slate-400; }
+  .campaign-month-legend i,
+  .campaign-detail-dot { @apply block h-3.5 w-3.5 shrink-0 rounded-full; }
+  .campaign-month-calendar { @apply overflow-hidden rounded-2xl border; border-color: rgba(40, 82, 124, 0.58); }
+  .campaign-month-weekdays { @apply grid grid-cols-7 border-b; border-color: rgba(40, 82, 124, 0.48); background: rgba(2, 12, 26, 0.7); }
+  .campaign-month-weekdays span { @apply px-2 py-3 text-center text-xs font-semibold text-slate-400; }
+  .campaign-month-grid { @apply grid grid-cols-7; background: rgba(40, 82, 124, 0.34); gap: 1px; }
+  .campaign-month-day {
+    @apply relative min-h-24 bg-slate-950/70 p-2 transition sm:min-h-28 sm:p-3;
+  }
+  .campaign-month-day.is-empty { @apply bg-slate-950/35; }
+  .campaign-month-day.is-selected { background: rgba(22, 60, 94, 0.74); box-shadow: inset 0 0 0 1px rgba(67, 183, 255, 0.62); }
+  .campaign-month-day.is-today .campaign-month-number { @apply bg-cyan-300 font-bold text-slate-950; }
+  .campaign-month-number { @apply grid h-7 w-7 place-items-center rounded-full text-xs font-semibold text-slate-300 transition; }
+  .campaign-month-number:not(:disabled):hover { @apply bg-cyan-400/15 text-cyan-100; }
+  .campaign-month-number:disabled { @apply cursor-default; }
+  .campaign-month-dots { @apply mt-3 flex flex-wrap gap-1.5; }
+  .campaign-month-dot {
+    @apply block h-4 w-4 shrink-0 rounded-full p-0 transition hover:scale-125 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-100;
+    min-width: 1rem;
+    border: 0 !important;
+    background-image: none !important;
+    appearance: none;
+    -webkit-appearance: none;
+  }
+  .campaign-day-details { @apply mt-6 border-t pt-5; border-color: rgba(40, 82, 124, 0.48); }
+  .campaign-day-details-heading { @apply flex flex-wrap items-center justify-between gap-4; }
+  .campaign-day-details-heading h3 { @apply mt-1 text-xl font-semibold text-white; }
+  .campaign-detail-dot { @apply h-4 w-4; }
   .campaign-status { @apply shrink-0 rounded-full border px-3 py-1.5 text-xs font-semibold; }
   .campaign-status.is-ready { @apply border-emerald-500/50 bg-emerald-500/10 text-emerald-200; }
   .campaign-status.is-draft { @apply border-slate-600 text-slate-300; }
   .campaign-status.is-scheduled { @apply border-cyan-500/50 bg-cyan-500/10 text-cyan-200; }
+  .campaign-retrieved-card { @apply overflow-hidden; }
+  .campaign-retrieved-header {
+    @apply flex flex-col gap-4 border-b p-5 sm:flex-row sm:items-start sm:justify-between sm:p-6;
+    border-color: rgba(40, 82, 124, 0.48);
+    background: linear-gradient(135deg, rgba(13, 39, 67, 0.88), rgba(5, 20, 39, 0.92));
+  }
+  .campaign-retrieved-status { @apply flex items-center gap-3 text-xs text-slate-500; }
+  .campaign-retrieved-status .campaign-status,
+  .campaign-sequence-list .campaign-status {
+    @apply rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em];
+  }
+  .campaign-brief-strip {
+    @apply grid gap-px border-b sm:grid-cols-2;
+    border-color: rgba(40, 82, 124, 0.48);
+    background: rgba(40, 82, 124, 0.48);
+  }
+  .campaign-brief-strip > div { @apply min-w-0 bg-slate-950/35 p-5 sm:px-6; }
+  .campaign-brief-strip span { @apply block text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500; }
+  .campaign-brief-strip strong { @apply mt-2 block text-sm font-semibold leading-6 text-slate-100; }
+  .campaign-retrieved-grid { @apply grid gap-4 p-5 sm:grid-cols-2 sm:p-6; }
+  .campaign-retrieved-grid > div { @apply bg-slate-950/35; }
+  .campaign-sequence { @apply border-t; border-color: rgba(40, 82, 124, 0.48); }
+  .campaign-sequence-heading { @apply flex items-end justify-between gap-4 p-5 sm:p-6; }
+  .campaign-sequence-heading h3 { @apply mt-1 text-xl font-semibold text-white; }
+  .campaign-sequence-heading > span { @apply text-xs text-slate-500; }
+  .campaign-sequence-table-wrap { @apply overflow-x-auto border-t; border-color: rgba(40, 82, 124, 0.48); }
+  .campaign-sequence-table { @apply w-full min-w-[880px] border-collapse text-left text-sm; }
+  .campaign-sequence-table thead { background: rgba(2, 12, 26, 0.72); }
+  .campaign-sequence-table th { @apply px-5 py-4 font-semibold text-slate-400; }
+  .campaign-sequence-table td { @apply border-t px-5 py-5 leading-6 text-slate-300; border-color: rgba(40, 82, 124, 0.38); }
+  .campaign-sequence-table th:nth-child(1) { width: 11%; }
+  .campaign-sequence-table th:nth-child(2) { width: 12%; }
+  .campaign-sequence-table th:nth-child(3) { width: 49%; }
+  .campaign-sequence-table th:nth-child(4) { width: 16%; }
+  .campaign-sequence-table th:nth-child(5) { width: 12%; }
+  .campaign-sequence-table td strong { @apply whitespace-nowrap font-bold text-white; }
+  .campaign-sequence-evidence { @apply whitespace-nowrap font-semibold text-cyan-300; }
+  .campaign-records-table { @apply w-full min-w-[760px] border-collapse text-left text-sm; }
+  .campaign-records-table th { @apply border-b border-slate-700 px-3 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-slate-400; }
+  .campaign-records-table td { @apply border-b border-slate-800 px-3 py-4 text-slate-300; }
+  .campaign-records-table td strong, .campaign-records-table td small { @apply block; }
+  .campaign-records-table td strong { @apply font-semibold text-white; }
+  .campaign-records-table td small { @apply mt-1 text-xs text-slate-500; }
+  .danger-button { @apply rounded-lg border border-red-400/40 px-3 py-2 text-xs font-semibold text-red-200 transition hover:border-red-300 hover:bg-red-400/10 disabled:cursor-not-allowed disabled:opacity-50; }
+  .calendar-filter-chip { @apply rounded-full border border-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-400 transition hover:border-cyan-400/60 hover:text-cyan-200; }
+  .calendar-filter-chip.is-active { @apply border-cyan-400/70 bg-cyan-400/10 text-cyan-200; }
   .campaign-status.is-review { @apply border-amber-500/50 bg-amber-500/10 text-amber-200; }
   .journey-rail { @apply pointer-events-none absolute left-[8%] right-[8%] top-9 z-0 flex items-center justify-between; height: 2px; background: rgba(148, 163, 184, 0.35); }
   .journey-rail i { @apply block h-4 w-0.5; background: rgba(148, 163, 184, 0.55); }
@@ -1208,6 +1345,15 @@
     border-color: rgba(67, 183, 255, 0.45);
   }
 
+  .trial-note { @apply min-w-0 p-1 sm:p-2; }
+  .trial-note-bubble {
+    @apply inline-flex rounded-full border px-4 py-2 text-xs font-bold uppercase tracking-[0.16em];
+    border-color: rgba(167, 139, 250, 0.7);
+    background: rgba(124, 58, 237, 0.28);
+    color: #ddd6fe;
+    box-shadow: 0 0 22px rgba(124, 58, 237, 0.2);
+  }
+
   table thead {
     background: rgba(2, 12, 26, 0.66);
   }
@@ -1280,6 +1426,7 @@
 
 /* Keep the hero content open without an enclosing card frame. */
 .dashboard-hero {
+  min-height: 0;
   border: 0;
   border-radius: 0;
   background: transparent;
@@ -1290,6 +1437,7 @@
 
 /* Keep the status card content stacked so its live indicator stays in the top-right. */
 .command-status-card {
+  margin-top: 4rem !important;
   display: flex;
   grid-template-columns: none;
 }

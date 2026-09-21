@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { api, isAbortError } from "../api/client";
+import { CAMPAIGN_CALENDAR_UPDATED_EVENT } from "../utils/campaignColors";
 import { CustomerMessageGapCard } from "../components/CustomerMessageGapCard";
 import { EvidenceDrawer } from "../components/EvidenceDrawer";
 import {
@@ -42,6 +43,11 @@ interface CampaignExecutionDraft {
   contentIdeas: string[];
   cta: string;
   kpi: string;
+}
+
+function todayInputValue(): string {
+  const today = new Date();
+  return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
 }
 
 function highestRelevance(insight: Insight): number {
@@ -205,19 +211,6 @@ function buildCalendar(
   ];
 }
 
-function formatLocalDate(value: Date): string {
-  const year = value.getFullYear();
-  const month = String(value.getMonth() + 1).padStart(2, "0");
-  const day = String(value.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
-function campaignDate(start: Date, sequenceDay: number): string {
-  return formatLocalDate(
-    new Date(start.getFullYear(), start.getMonth(), start.getDate() + sequenceDay - 1),
-  );
-}
-
 function pickInsight(insights: Insight[], categories: string[]): Insight | null {
   return (
     insights.find((insight) => categories.includes(insight.category)) ??
@@ -229,6 +222,7 @@ function pickInsight(insights: Insight[], categories: string[]): Insight | null 
 export function CampaignPlan({ clientId, clientName = "", brief, insights, onNavigate }: Props) {
   const [generationStatus, setGenerationStatus] = useState<GenerationStatus>("idle");
   const [generationError, setGenerationError] = useState<string | null>(null);
+  const [startDate, setStartDate] = useState(todayInputValue);
   const [gapResult, setGapResult] = useState<CampaignGapResponse | null>(null);
   const [persistedCampaign, setPersistedCampaign] = useState<PersistedCampaign | null>(null);
   const [approval, setApproval] = useState<ApprovalState>("draft");
@@ -256,11 +250,29 @@ export function CampaignPlan({ clientId, clientName = "", brief, insights, onNav
   );
   const keyInsight = activeInsights[0] ?? null;
   const executionDraft = useMemo(
-    () =>
-      clientId !== null && keyInsight
-        ? buildExecutionDraft({ clientId, clientName, brief, keyInsight, gapResult })
-        : null,
-    [brief, clientId, clientName, gapResult, keyInsight],
+    () => {
+      if (clientId === null || !keyInsight) return null;
+      const fallback = buildExecutionDraft({
+        clientId,
+        clientName,
+        brief,
+        keyInsight,
+        gapResult,
+      });
+      if (!persistedCampaign) return fallback;
+      return {
+        ...fallback,
+        name: persistedCampaign.name,
+        objective: persistedCampaign.objective,
+        targetAudience: persistedCampaign.target_audience,
+        messageGap: persistedCampaign.message_gap ?? fallback.messageGap,
+        recommendedMessage: persistedCampaign.key_message,
+        cta: persistedCampaign.cta,
+        kpi: persistedCampaign.kpi,
+        contentIdeas: persistedCampaign.content_items.map((item) => item.content),
+      };
+    },
+    [brief, clientId, clientName, gapResult, keyInsight, persistedCampaign],
   );
 
   useEffect(() => {
@@ -273,7 +285,7 @@ export function CampaignPlan({ clientId, clientName = "", brief, insights, onNav
     setSignalsById(new Map());
     setEvidenceWarning(null);
     return () => analysisController.current?.abort();
-  }, [clientId, brief, insights]);
+  }, [clientId, brief, insights, startDate]);
 
   useEffect(() => {
     setPersistedCampaign(null);
@@ -379,73 +391,36 @@ export function CampaignPlan({ clientId, clientName = "", brief, insights, onNav
 
     try {
       if (!keyInsight) throw new Error("No usable customer insight is available");
-      const draft = buildExecutionDraft({
-        clientId,
-        clientName,
-        brief,
-        keyInsight,
-        gapResult: response,
-      });
-      const generatedCalendar = buildCalendar(brief, driver, concern, response);
       const persistedBrief = await api.saveMarketingBrief(
         clientId,
         brief,
         controller.signal,
       );
-      const activeInsightIds = new Set(activeInsights.map((insight) => insight.id));
-      const supportingInsightIds = Array.from(new Set([
-        keyInsight.id,
-        ...response.analysis.supporting_insight_ids.filter((id) => activeInsightIds.has(id)),
-      ]));
-      const campaignStart = new Date();
-      const sequenceDays = generatedCalendar.map((item) =>
-        Number(item.day.replace("Day ", "")),
-      );
-      const savedCampaign = await api.createCampaign(
+      const generated = await api.generateCampaign(
         clientId,
         {
           marketing_brief_id: persistedBrief.id,
           analysis_run_id: keyInsight.analysis_run_id,
           primary_insight_id: keyInsight.id,
-          supporting_insight_ids: supportingInsightIds,
-          name: draft.name,
-          key_message: draft.recommendedMessage,
-          message_gap: draft.messageGap,
-          cta: draft.cta,
-          kpi: draft.kpi,
-          status: "draft",
-          start_date: campaignDate(campaignStart, Math.min(...sequenceDays)),
-          end_date: campaignDate(campaignStart, Math.max(...sequenceDays)),
-          strategy_payload: {
-            current_message: brief.current_message,
-            gap_analysis: response.analysis,
-          },
-          content_items: generatedCalendar.map((item) => ({
-            channel: item.channel,
-            content: item.content,
-            content_type: item.purpose,
-            cta: item.purpose === "Consideration" ? draft.cta : null,
-            sequence_day: Number(item.day.replace("Day ", "")),
-            publish_date: campaignDate(
-              campaignStart,
-              Number(item.day.replace("Day ", "")),
-            ),
-            status: "draft",
-          })),
+          supporting_insight_ids: activeInsights.map((insight) => insight.id),
+          start_date: startDate,
+          gap: response,
         },
         controller.signal,
       );
       if (controller.signal.aborted) return;
-      if (savedCampaign.client_id !== clientId) {
+      if (generated.campaign.client_id !== clientId || generated.gap.client_id !== clientId) {
         throw new Error("Persisted campaign belongs to a different client");
       }
-      setPersistedCampaign(savedCampaign);
+      setGapResult(response);
+      setPersistedCampaign(generated.campaign);
       setGenerationStatus("success");
+      window.dispatchEvent(new Event(CAMPAIGN_CALENDAR_UPDATED_EVENT));
     } catch (error) {
       if (controller.signal.aborted || isAbortError(error)) return;
-      console.error("Campaign persistence failed", error);
+      console.error("Backend campaign generation failed", error);
       setGenerationError(
-        "The campaign was generated, but it could not be saved to the backend. Retry to create a durable campaign record.",
+        "The backend could not generate and save the campaign. Check the backend connection and retry.",
       );
       setGenerationStatus("error");
     } finally {
@@ -582,6 +557,15 @@ export function CampaignPlan({ clientId, clientName = "", brief, insights, onNav
                     : " · evidence attachment pending"}
                 </p>
               )}
+              <label className="mt-5 block max-w-xs text-sm font-semibold text-slate-200">
+                Campaign start date
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={(event) => setStartDate(event.target.value)}
+                  className="mt-2 block w-full rounded-xl border border-slate-700 bg-slate-950/70 px-3 py-2 text-slate-100"
+                />
+              </label>
               <button
                 type="button"
                 onClick={() => void generateCampaign()}
@@ -851,18 +835,31 @@ function CampaignExecutionBrief({
 
 function PersistedCampaignSummary({ campaign }: { campaign: PersistedCampaign }) {
   return (
-    <article className="surface-card overflow-hidden" aria-label={`Saved campaign #${campaign.id}`}>
-      <div className="border-b border-slate-800 p-5 sm:p-6">
-        <p className="section-kicker">Retrieved from campaign database</p>
-        <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-2xl font-semibold text-white">{campaign.name}</h2>
-          <span className="context-pill">Campaign #{campaign.id} · {campaign.status}</span>
+    <article className="surface-card campaign-retrieved-card" aria-label={`Saved campaign #${campaign.id}`}>
+      <header className="campaign-retrieved-header">
+        <div>
+          <p className="section-kicker">Retrieved from campaign database</p>
+          <h2 className="mt-2 text-2xl font-semibold text-white">{campaign.name}</h2>
         </div>
-        <p className="mt-3 text-sm leading-6 text-slate-300">
-          {campaign.objective} · {campaign.target_audience}
-        </p>
+        <div className="campaign-retrieved-status">
+          <span className="sr-only">Campaign #{campaign.id} · {campaign.status}</span>
+          <span>Campaign #{campaign.id}</span>
+          <strong className={`campaign-status is-${campaign.status}`}>{campaign.status}</strong>
+        </div>
+      </header>
+
+      <div className="campaign-brief-strip">
+        <div>
+          <span>Objective</span>
+          <strong>{campaign.objective}</strong>
+        </div>
+        <div>
+          <span>Audience</span>
+          <strong>{campaign.target_audience}</strong>
+        </div>
       </div>
-      <dl className="grid gap-4 p-5 sm:grid-cols-2 sm:p-6">
+
+      <div className="campaign-retrieved-grid">
         {campaign.primary_insight && (
           <PlanField label="Key customer insight">
             <p>{campaign.primary_insight.title}</p>
@@ -876,32 +873,54 @@ function PersistedCampaignSummary({ campaign }: { campaign: PersistedCampaign })
         <PlanField label="Call to action (CTA)"><p>{campaign.cta}</p></PlanField>
         <PlanField label="KPI / success metric"><p>{campaign.kpi}</p></PlanField>
         <PlanField label="Approval">
-          <p>{campaign.approval?.status ?? "pending"}</p>
+          <p className="capitalize">{campaign.approval?.status ?? "pending"}</p>
         </PlanField>
-      </dl>
-      <div className="overflow-x-auto border-t border-slate-800">
-        <table className="min-w-full text-left text-sm">
-          <caption className="sr-only">Persisted campaign content items</caption>
-          <thead className="bg-slate-950/70 text-slate-400">
-            <tr>
-              <th scope="col" className="px-5 py-3 font-medium">Sequence</th>
-              <th scope="col" className="px-5 py-3 font-medium">Channel</th>
-              <th scope="col" className="px-5 py-3 font-medium">Content</th>
-              <th scope="col" className="px-5 py-3 font-medium">Status</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-800">
-            {campaign.content_items.map((item, index) => (
-              <tr key={item.id} className="text-slate-300">
-                <td className="px-5 py-4">Day {item.sequence_day ?? index + 1}</td>
-                <td className="px-5 py-4">{item.channel}</td>
-                <td className="min-w-72 px-5 py-4">{item.content}</td>
-                <td className="px-5 py-4">{item.status}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
       </div>
+
+      <section className="campaign-sequence" aria-labelledby="persisted-sequence-title">
+        <div className="campaign-sequence-heading">
+          <div>
+            <p className="section-kicker">Content calendar</p>
+            <h3 id="persisted-sequence-title">Seven-day evidence-led sequence</h3>
+          </div>
+          <span>{campaign.content_items.length} planned items</span>
+        </div>
+        <div className="campaign-sequence-table-wrap" role="region" aria-label="Saved campaign content calendar" tabIndex={0}>
+          <table className="campaign-sequence-table">
+            <caption className="sr-only">Persisted campaign content items</caption>
+            <thead>
+              <tr>
+                <th scope="col">Schedule</th>
+                <th scope="col">Channel</th>
+                <th scope="col">Content direction</th>
+                <th scope="col">Purpose</th>
+                <th scope="col">Evidence</th>
+              </tr>
+            </thead>
+            <tbody>
+              {campaign.content_items.map((item, index) => {
+                const evidenceIds = campaign.supporting_insight_ids.length > 0
+                  ? campaign.supporting_insight_ids
+                  : campaign.primary_insight_id
+                    ? [campaign.primary_insight_id]
+                    : [];
+                const evidenceId = evidenceIds[index % Math.max(evidenceIds.length, 1)];
+                return (
+                  <tr key={item.id}>
+                    <td><strong>Day {item.sequence_day ?? index + 1}</strong></td>
+                    <td>{item.channel}</td>
+                    <td>{item.content}</td>
+                    <td>{item.content_type ?? "Campaign content"}</td>
+                    <td className="campaign-sequence-evidence">
+                      {evidenceId ? `Insight #${evidenceId}` : "Brief"}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </section>
     </article>
   );
 }

@@ -181,6 +181,12 @@ describe("CampaignPlan", () => {
       created_at: "2026-09-21T00:00:00Z",
       updated_at: "2026-09-21T00:00:00Z",
     });
+    vi.spyOn(api, "generateCampaign").mockImplementation(
+      async (clientId) => ({
+        campaign: { ...persistedCampaign(), client_id: clientId },
+        gap: { ...gap, client_id: clientId },
+      }),
+    );
     vi.spyOn(api, "createCampaign").mockImplementation(
       async (_clientId, payload) => persistedCampaign(payload),
     );
@@ -284,37 +290,17 @@ describe("CampaignPlan", () => {
     await generate(user);
 
     expect(api.saveMarketingBrief).toHaveBeenCalledWith(1, brief, expect.any(AbortSignal));
-    expect(api.createCampaign).toHaveBeenCalledWith(
+    expect(api.generateCampaign).toHaveBeenCalledWith(
       1,
       expect.objectContaining({
         marketing_brief_id: 41,
         analysis_run_id: insight.analysis_run_id,
         primary_insight_id: insight.id,
         supporting_insight_ids: [insight.id],
-        name: "Bright Path · Fast setup matters",
-        cta: "Sign up today",
-        kpi: "Qualified campaign sign-ups",
-        status: "draft",
-        content_items: expect.arrayContaining([
-          expect.objectContaining({
-            channel: "LinkedIn",
-            sequence_day: 1,
-            status: "draft",
-          }),
-        ]),
+        gap,
       }),
       expect.any(AbortSignal),
     );
-    const payload = vi.mocked(api.createCampaign).mock.calls[0][1];
-    expect(payload.content_items).toHaveLength(4);
-    expect(payload.start_date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
-    expect(payload.end_date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
-    expect(payload.content_items.map((item) => item.publish_date)).toEqual([
-      payload.start_date,
-      expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
-      expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
-      payload.end_date,
-    ]);
     expect(screen.getByText(/Saved to backend as Campaign #501/)).toBeInTheDocument();
   });
 
@@ -370,7 +356,7 @@ describe("CampaignPlan", () => {
     expect(execution.getByText("Qualified campaign sign-ups")).toBeInTheDocument();
   });
 
-  it("selects the strongest evidence-backed insight instead of provider order", async () => {
+  it("renders the backend-generated campaign returned after insight selection", async () => {
     const strongerInsight: Insight = {
       ...insight,
       id: 13,
@@ -391,11 +377,11 @@ describe("CampaignPlan", () => {
     )).toBeInTheDocument();
     await generate(user);
     const execution = within(screen.getByRole("article", { name: "Campaign execution brief" }));
-    expect(execution.getByRole("heading", { name: "Bright Path · Trusted automation wins" })).toBeInTheDocument();
+    expect(execution.getByRole("heading", { name: "Bright Path · Fast setup matters" })).toBeInTheDocument();
     expect(execution.getByText(strongerInsight.summary)).toBeInTheDocument();
   });
 
-  it("uses gap-analysis values, gaps, and recommendations in the calendar rows", async () => {
+  it("passes gap-analysis values to the backend campaign generator", async () => {
     vi.mocked(api.analyseCampaignGapAutomatically).mockResolvedValue({
       ...gap,
       analysis: { ...gap.analysis, matched_customer_values: ["Reliable onboarding"] },
@@ -403,15 +389,17 @@ describe("CampaignPlan", () => {
     const user = userEvent.setup();
     renderPlan();
     await generate(user);
-    const calendar = within(screen.getByRole("table", {
-      name: "Seven-day evidence-led campaign content schedule",
-    }));
-    expect(within(calendar.getByRole("row", { name: /Day 1/ }))
-      .getByRole("cell", { name: "Customer proof: Reliable onboarding" })).toBeInTheDocument();
-    expect(within(calendar.getByRole("row", { name: /Day 3/ }))
-      .getByRole("cell", { name: "Address the concern: Customer proof is missing" })).toBeInTheDocument();
-    expect(within(calendar.getByRole("row", { name: /Day 5/ }))
-      .getByRole("cell", { name: "Add customer proof" })).toBeInTheDocument();
+    expect(api.generateCampaign).toHaveBeenCalledWith(
+      1,
+      expect.objectContaining({
+        gap: expect.objectContaining({
+          analysis: expect.objectContaining({
+            matched_customer_values: ["Reliable onboarding"],
+          }),
+        }),
+      }),
+      expect.any(AbortSignal),
+    );
   });
 
   it("generates before metadata settles and opens excerpts immediately, then enriches the drawer", async () => {
@@ -559,7 +547,7 @@ describe("CampaignPlan", () => {
   it("keeps the generated draft visible and reports when backend saving fails", async () => {
     const error = new Error("Database unavailable");
     const errorLog = vi.spyOn(console, "error").mockImplementation(() => {});
-    vi.mocked(api.createCampaign).mockRejectedValue(error);
+    vi.mocked(api.generateCampaign).mockRejectedValue(error);
     const user = userEvent.setup();
     renderPlan();
 
@@ -567,10 +555,10 @@ describe("CampaignPlan", () => {
 
     expect(screen.getByRole("article", { name: "Customer-Message Gap" })).toBeInTheDocument();
     expect(screen.getByRole("alert")).toHaveTextContent(
-      "could not be saved to the backend",
+      "The backend could not generate and save the campaign.",
     );
     expect(screen.queryByText(/Saved to backend as Campaign/)).not.toBeInTheDocument();
-    expect(errorLog).toHaveBeenCalledWith("Campaign persistence failed", error);
+    expect(errorLog).toHaveBeenCalledWith("Backend campaign generation failed", error);
   });
 
   it("aborts pending analysis on client changes and ignores late results", async () => {

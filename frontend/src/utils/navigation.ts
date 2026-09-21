@@ -7,7 +7,6 @@ export const APP_VIEWS: AppView[] = [
   "campaign-plan",
   "trial-retention",
   "campaign-calendar",
-  "sources",
 ];
 
 export function hashForView(view: AppView): string {

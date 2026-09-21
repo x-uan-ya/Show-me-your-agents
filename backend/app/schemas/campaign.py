@@ -7,6 +7,8 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from app.schemas.campaign_gap import CampaignGapResponse
+
 
 CampaignStatus = Literal["draft", "approved", "revision_requested"]
 ContentStatus = Literal["draft", "scheduled", "published", "cancelled"]
@@ -86,6 +88,10 @@ class CampaignCalendarItemRead(BaseModel):
     content_type: str | None
     cta: str | None
     owner: str | None
+
+
+class CampaignContentStatusUpdate(BaseModel):
+    status: ContentStatus
 
 
 class CampaignApprovalRead(BaseModel):
@@ -177,3 +183,26 @@ class CampaignStatusUpdate(BaseModel):
     status: CampaignStatus
     reviewer: str | None = Field(default=None, max_length=256)
     revision_comment: str | None = Field(default=None, max_length=8000)
+
+
+class CampaignGenerateRequest(BaseModel):
+    """Inputs needed for backend-owned campaign generation."""
+
+    marketing_brief_id: int = Field(..., ge=1)
+    analysis_run_id: int | None = Field(default=None, ge=1)
+    primary_insight_id: int | None = Field(default=None, ge=1)
+    supporting_insight_ids: list[int] = Field(default_factory=list, max_length=128)
+    start_date: date | None = None
+    gap: CampaignGapResponse | None = None
+
+    @field_validator("supporting_insight_ids")
+    @classmethod
+    def deduplicate_supporting_ids(cls, insight_ids: list[int]) -> list[int]:
+        if any(insight_id < 1 for insight_id in insight_ids):
+            raise ValueError("Supporting insight IDs must be positive integers")
+        return list(dict.fromkeys(insight_ids))
+
+
+class CampaignGenerationRead(BaseModel):
+    campaign: CampaignRead
+    gap: CampaignGapResponse
