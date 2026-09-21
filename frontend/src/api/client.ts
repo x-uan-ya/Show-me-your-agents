@@ -24,11 +24,13 @@ import type {
 // Default to a relative "/api" so the app works when the backend serves the
 // built frontend from the same origin (single-instance deployment). In local
 // split dev, .env.development points this at the separate backend port.
-const API_BASE_URL =
-  (import.meta.env.VITE_API_BASE_URL ?? "/api").replace(
-    /\/$/,
-    "",
-  );
+function apiBaseUrl(value: string | undefined): string {
+  const configured = (value?.trim() || "/api").replace(/\/+$/, "");
+  if (!configured || configured === "/") return "/api";
+  return configured.endsWith("/api") ? configured : `${configured}/api`;
+}
+
+const API_BASE_URL = apiBaseUrl(import.meta.env.VITE_API_BASE_URL);
 
 const DEFAULT_TIMEOUT_MS = 60_000;
 

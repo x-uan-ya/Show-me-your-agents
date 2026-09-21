@@ -200,6 +200,8 @@ and Node.js to already be installed.
 
 Then run `npm run dev`. Backend is on <http://localhost:8000>, frontend on
 <http://localhost:5173>, and API docs are at <http://localhost:8000/docs>.
+The Vite development server proxies `/api` to the backend, so creating clients
+and using Trial vs Retention works without a separate browser CORS setup.
 
 You can also run either side alone: `npm run dev:backend` or
 `npm run dev:frontend`.
@@ -231,6 +233,39 @@ npm run dev
 
 Open <http://localhost:5173>. API documentation is available at
 <http://localhost:8000/docs>.
+
+### Trial the local frontend with an AWS backend
+
+Copy the frontend environment example and set the Lightsail service origin:
+
+```bash
+cp frontend/.env.example frontend/.env.local
+```
+
+In `frontend/.env.local`:
+
+```dotenv
+VITE_API_BASE_URL=/api
+VITE_API_PROXY_TARGET=https://YOUR-SERVICE.ap-southeast-1.cs.amazonlightsail.com
+```
+
+`VITE_API_PROXY_TARGET` accepts the AWS origin either with or without a trailing
+`/api`. Then start only the local frontend:
+
+```bash
+npm run dev:frontend
+```
+
+Open <http://localhost:5173>. Browser requests stay on the Vite origin and are
+proxied to AWS, which avoids local CORS failures. Confirm the AWS backend first:
+
+```bash
+curl https://YOUR-SERVICE.ap-southeast-1.cs.amazonlightsail.com/api/health
+```
+
+For a production frontend build hosted separately from the backend, set
+`VITE_API_BASE_URL` directly to the AWS origin (or its `/api` URL) at build
+time. Do not commit `.env.local` or credentials.
 
 ## Frontend checks
 

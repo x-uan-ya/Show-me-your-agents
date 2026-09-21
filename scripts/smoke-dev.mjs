@@ -61,11 +61,12 @@ async function responds(url) {
 async function waitForServices() {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    const [backendReady, frontendReady] = await Promise.all([
+    const [backendReady, frontendReady, proxiedApiReady] = await Promise.all([
       responds("http://127.0.0.1:8000/api/health"),
       responds("http://127.0.0.1:5173/"),
+      responds("http://127.0.0.1:5173/api/health"),
     ]);
-    if (backendReady && frontendReady) return;
+    if (backendReady && frontendReady && proxiedApiReady) return;
     await delay(pollIntervalMs);
   }
   throw new Error(`Services did not become ready within ${timeoutMs / 1000}s.`);
@@ -84,7 +85,9 @@ const exitedBeforeReady = new Promise((_, reject) => {
 
 try {
   await Promise.race([waitForServices(), exitedBeforeReady]);
-  console.log(`[smoke] PASS on ${process.platform}: frontend and backend responded.`);
+  console.log(
+    `[smoke] PASS on ${process.platform}: frontend, backend and Vite API proxy responded.`,
+  );
 } catch (error) {
   console.error(`[smoke] FAIL on ${process.platform}: ${error.message}`);
   process.exitCode = 1;
