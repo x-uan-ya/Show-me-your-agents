@@ -18,6 +18,7 @@ from app.database import init_db
 from app.routers import (
     analysis_router,
     behaviour_router,
+    calendar_router,
     campaign_gap_router,
     campaigns_router,
     clients_datasets_router,
@@ -56,6 +57,7 @@ app.include_router(analysis_router, prefix=settings.api_prefix)
 app.include_router(behaviour_router, prefix=settings.api_prefix)
 app.include_router(campaign_gap_router, prefix=settings.api_prefix)
 app.include_router(campaigns_router, prefix=settings.api_prefix)
+app.include_router(calendar_router, prefix=settings.api_prefix)
 app.include_router(handoff_router, prefix=settings.api_prefix)
 app.include_router(evaluation_router, prefix=settings.api_prefix)
 

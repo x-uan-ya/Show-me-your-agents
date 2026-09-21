@@ -205,6 +205,19 @@ function buildCalendar(
   ];
 }
 
+function formatLocalDate(value: Date): string {
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, "0");
+  const day = String(value.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function campaignDate(start: Date, sequenceDay: number): string {
+  return formatLocalDate(
+    new Date(start.getFullYear(), start.getMonth(), start.getDate() + sequenceDay - 1),
+  );
+}
+
 function pickInsight(insights: Insight[], categories: string[]): Insight | null {
   return (
     insights.find((insight) => categories.includes(insight.category)) ??
@@ -384,6 +397,10 @@ export function CampaignPlan({ clientId, clientName = "", brief, insights, onNav
         keyInsight.id,
         ...response.analysis.supporting_insight_ids.filter((id) => activeInsightIds.has(id)),
       ]));
+      const campaignStart = new Date();
+      const sequenceDays = generatedCalendar.map((item) =>
+        Number(item.day.replace("Day ", "")),
+      );
       const savedCampaign = await api.createCampaign(
         clientId,
         {
@@ -397,6 +414,8 @@ export function CampaignPlan({ clientId, clientName = "", brief, insights, onNav
           cta: draft.cta,
           kpi: draft.kpi,
           status: "draft",
+          start_date: campaignDate(campaignStart, Math.min(...sequenceDays)),
+          end_date: campaignDate(campaignStart, Math.max(...sequenceDays)),
           strategy_payload: {
             current_message: brief.current_message,
             gap_analysis: response.analysis,
@@ -407,7 +426,10 @@ export function CampaignPlan({ clientId, clientName = "", brief, insights, onNav
             content_type: item.purpose,
             cta: item.purpose === "Consideration" ? draft.cta : null,
             sequence_day: Number(item.day.replace("Day ", "")),
-            publish_date: null,
+            publish_date: campaignDate(
+              campaignStart,
+              Number(item.day.replace("Day ", "")),
+            ),
             status: "draft",
           })),
         },

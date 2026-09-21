@@ -70,6 +70,24 @@ class CampaignContentItemRead(CampaignContentItemCreate):
     updated_at: datetime
 
 
+class CampaignCalendarItemRead(BaseModel):
+    """A dated content item with its campaign and client context."""
+
+    id: int
+    campaign_id: int
+    campaign_name: str
+    campaign_status: str
+    client_id: int
+    client_name: str
+    channel: str
+    publish_date: date
+    status: ContentStatus
+    content: str
+    content_type: str | None
+    cta: str | None
+    owner: str | None
+
+
 class CampaignApprovalRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

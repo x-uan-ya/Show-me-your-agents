@@ -73,6 +73,22 @@ export interface PersistedCampaignContentItem extends CampaignContentItemInput {
   updated_at: string;
 }
 
+export interface CampaignCalendarItem {
+  id: number;
+  campaign_id: number;
+  campaign_name: string;
+  campaign_status: string;
+  client_id: number;
+  client_name: string;
+  channel: string;
+  publish_date: string;
+  status: "draft" | "scheduled" | "published" | "cancelled";
+  content: string;
+  content_type: string | null;
+  cta: string | null;
+  owner: string | null;
+}
+
 export interface CampaignApproval {
   id: number;
   campaign_id: number;

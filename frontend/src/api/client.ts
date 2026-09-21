@@ -4,6 +4,7 @@
 import type {
   AnalyseResponse,
   BehaviourSummary,
+  CampaignCalendarItem,
   CampaignGapResponse,
   CampaignCreateInput,
   Client,
@@ -269,6 +270,26 @@ export const api = {
 
   listCampaigns: (clientId: number, signal?: AbortSignal) =>
     getJson<PersistedCampaign[]>(`/clients/${clientId}/campaigns`, signal),
+
+  listCalendarItems: (
+    filters: {
+      clientId?: number;
+      startDate?: string;
+      endDate?: string;
+      channel?: string;
+      status?: CampaignCalendarItem["status"];
+    } = {},
+    signal?: AbortSignal,
+  ) => {
+    const query = new URLSearchParams();
+    if (filters.clientId !== undefined) query.set("client_id", String(filters.clientId));
+    if (filters.startDate) query.set("start_date", filters.startDate);
+    if (filters.endDate) query.set("end_date", filters.endDate);
+    if (filters.channel) query.set("channel", filters.channel);
+    if (filters.status) query.set("status", filters.status);
+    const suffix = query.size > 0 ? `?${query.toString()}` : "";
+    return getJson<CampaignCalendarItem[]>(`/calendar${suffix}`, signal);
+  },
 
   getCampaign: (
     clientId: number,

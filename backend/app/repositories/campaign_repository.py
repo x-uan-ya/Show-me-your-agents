@@ -1,9 +1,9 @@
 """Data access and relationship validation for persisted campaigns."""
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 from sqlalchemy import select
-from sqlalchemy.orm import Session, selectinload
+from sqlalchemy.orm import Session, joinedload, selectinload
 
 from app.models.analysis_run import AnalysisRun
 from app.models.campaign import Campaign, CampaignApproval, CampaignContentItem
@@ -52,6 +52,41 @@ class CampaignRepository:
             self._campaign_query()
             .where(Campaign.client_id == client_id)
             .order_by(Campaign.id.desc())
+        )
+        return list(self._db.scalars(stmt).all())
+
+    def list_calendar_items(
+        self,
+        *,
+        client_id: int | None = None,
+        start_date: date | None = None,
+        end_date: date | None = None,
+        channel: str | None = None,
+        item_status: str | None = None,
+    ) -> list[CampaignContentItem]:
+        """Return dated schedule items with campaign and client relationships loaded."""
+
+        stmt = (
+            select(CampaignContentItem)
+            .join(CampaignContentItem.campaign)
+            .options(
+                joinedload(CampaignContentItem.campaign).joinedload(Campaign.client)
+            )
+            .where(CampaignContentItem.publish_date.is_not(None))
+        )
+        if client_id is not None:
+            stmt = stmt.where(Campaign.client_id == client_id)
+        if start_date is not None:
+            stmt = stmt.where(CampaignContentItem.publish_date >= start_date)
+        if end_date is not None:
+            stmt = stmt.where(CampaignContentItem.publish_date <= end_date)
+        if channel is not None:
+            stmt = stmt.where(CampaignContentItem.channel == channel)
+        if item_status is not None:
+            stmt = stmt.where(CampaignContentItem.status == item_status)
+        stmt = stmt.order_by(
+            CampaignContentItem.publish_date,
+            CampaignContentItem.id,
         )
         return list(self._db.scalars(stmt).all())
 

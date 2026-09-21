@@ -286,3 +286,142 @@ def test_campaign_status_updates_persist_in_approval(env) -> None:
     assert approved.json()["approval"]["reviewer"] == "Demo reviewer"
     assert approved.json()["approval"]["decided_at"] is not None
     assert reloaded.json()["approval"]["status"] == "approved"
+
+
+def test_calendar_returns_dated_content_with_campaign_and_client_context(env) -> None:
+    client, _ = env
+    owner_id = _client(client, "Sunny Cafe")
+    other_id = _client(client, "TechStart")
+    owner_brief = _brief(client, owner_id)
+    other_brief = _brief(client, other_id)
+
+    owner_payload = _campaign_payload(owner_brief["id"])
+    owner_payload["name"] = "Lunch Rush Recovery"
+    owner_payload["content_items"] = [
+        {
+            "channel": "Instagram",
+            "content": "Skip the Queue Reel",
+            "content_type": "Reel",
+            "cta": "Order ahead",
+            "sequence_day": 1,
+            "publish_date": "2026-09-22",
+            "owner": "Maya",
+            "status": "scheduled",
+        },
+        {
+            "channel": "Email",
+            "content": "Lunch Promotion",
+            "content_type": "Newsletter",
+            "sequence_day": 3,
+            "publish_date": "2026-09-24",
+            "status": "draft",
+        },
+        {
+            "channel": "Instagram",
+            "content": "Undated idea",
+            "sequence_day": 5,
+            "status": "draft",
+        },
+    ]
+    owner_campaign = client.post(
+        f"/api/clients/{owner_id}/campaigns",
+        json=owner_payload,
+    ).json()
+
+    other_payload = _campaign_payload(other_brief["id"])
+    other_payload["name"] = "Faster Onboarding"
+    other_payload["content_items"] = [
+        {
+            "channel": "TikTok",
+            "content": "Fast Pickup Video",
+            "sequence_day": 1,
+            "publish_date": "2026-09-27",
+            "status": "published",
+        }
+    ]
+    assert client.post(
+        f"/api/clients/{other_id}/campaigns",
+        json=other_payload,
+    ).status_code == 201
+
+    response = client.get(
+        "/api/calendar?start_date=2026-09-01&end_date=2026-09-30"
+    )
+
+    assert response.status_code == 200
+    items = response.json()
+    assert [item["publish_date"] for item in items] == [
+        "2026-09-22",
+        "2026-09-24",
+        "2026-09-27",
+    ]
+    assert [item["campaign_id"] for item in items[:2]] == [
+        owner_campaign["id"],
+        owner_campaign["id"],
+    ]
+    assert items[0] == {
+        "id": items[0]["id"],
+        "campaign_id": owner_campaign["id"],
+        "campaign_name": "Lunch Rush Recovery",
+        "campaign_status": "draft",
+        "client_id": owner_id,
+        "client_name": "Sunny Cafe",
+        "channel": "Instagram",
+        "publish_date": "2026-09-22",
+        "status": "scheduled",
+        "content": "Skip the Queue Reel",
+        "content_type": "Reel",
+        "cta": "Order ahead",
+        "owner": "Maya",
+    }
+    assert items[2]["client_name"] == "TechStart"
+    assert all(item["content"] != "Undated idea" for item in items)
+
+
+def test_calendar_filters_preserve_client_isolation_and_real_values(env) -> None:
+    client, _ = env
+    owner_id = _client(client, "Calendar Owner")
+    other_id = _client(client, "Other Calendar Owner")
+    for client_id, channel, item_status in [
+        (owner_id, "Instagram", "scheduled"),
+        (other_id, "Email", "draft"),
+    ]:
+        brief = _brief(client, client_id)
+        payload = _campaign_payload(brief["id"])
+        payload["content_items"] = [
+            {
+                "channel": channel,
+                "content": f"{channel} content",
+                "sequence_day": 1,
+                "publish_date": "2026-09-22",
+                "status": item_status,
+            }
+        ]
+        assert client.post(
+            f"/api/clients/{client_id}/campaigns",
+            json=payload,
+        ).status_code == 201
+
+    scoped = client.get(
+        f"/api/calendar?client_id={owner_id}&channel=Instagram&status=scheduled"
+    )
+    outside_month = client.get(
+        f"/api/calendar?client_id={owner_id}&start_date=2026-10-01&end_date=2026-10-31"
+    )
+
+    assert scoped.status_code == 200
+    assert len(scoped.json()) == 1
+    assert scoped.json()[0]["client_id"] == owner_id
+    assert scoped.json()[0]["channel"] == "Instagram"
+    assert scoped.json()[0]["status"] == "scheduled"
+    assert outside_month.json() == []
+
+
+def test_calendar_rejects_invalid_filters(env) -> None:
+    client, _ = env
+
+    assert client.get("/api/calendar?client_id=9999").status_code == 404
+    assert client.get(
+        "/api/calendar?start_date=2026-10-01&end_date=2026-09-01"
+    ).status_code == 422
+    assert client.get("/api/calendar?status=unsupported").status_code == 422

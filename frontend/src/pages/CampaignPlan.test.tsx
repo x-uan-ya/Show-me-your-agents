@@ -307,6 +307,14 @@ describe("CampaignPlan", () => {
     );
     const payload = vi.mocked(api.createCampaign).mock.calls[0][1];
     expect(payload.content_items).toHaveLength(4);
+    expect(payload.start_date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(payload.end_date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(payload.content_items.map((item) => item.publish_date)).toEqual([
+      payload.start_date,
+      expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
+      expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
+      payload.end_date,
+    ]);
     expect(screen.getByText(/Saved to backend as Campaign #501/)).toBeInTheDocument();
   });
 

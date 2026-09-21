@@ -1,20 +1,25 @@
-"""Client-scoped persistence endpoints for briefs and campaigns."""
+"""Persistence endpoints for briefs, campaigns and campaign calendar items."""
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from datetime import date
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.client import Client
 from app.repositories.campaign_repository import CampaignReferenceError, CampaignRepository
 from app.schemas.campaign import (
+    CampaignCalendarItemRead,
     CampaignCreate,
     CampaignRead,
     CampaignStatusUpdate,
+    ContentStatus,
     MarketingBriefRead,
     MarketingBriefWrite,
 )
 
 router = APIRouter(prefix="/clients/{client_id}", tags=["campaigns"])
+calendar_router = APIRouter(prefix="/calendar", tags=["campaigns"])
 
 
 def _require_client(db: Session, client_id: int) -> None:
@@ -23,6 +28,53 @@ def _require_client(db: Session, client_id: int) -> None:
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Client {client_id} not found",
         )
+
+
+@calendar_router.get("", response_model=list[CampaignCalendarItemRead])
+def list_calendar_items(
+    client_id: int | None = Query(default=None, ge=1),
+    start_date: date | None = None,
+    end_date: date | None = None,
+    channel: str | None = Query(default=None, min_length=1, max_length=128),
+    item_status: ContentStatus | None = Query(default=None, alias="status"),
+    db: Session = Depends(get_db),
+) -> list[CampaignCalendarItemRead]:
+    """Return persisted, dated content items with campaign and client context."""
+
+    if start_date and end_date and end_date < start_date:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="end_date must be on or after start_date",
+        )
+    if client_id is not None:
+        _require_client(db, client_id)
+
+    items = CampaignRepository(db).list_calendar_items(
+        client_id=client_id,
+        start_date=start_date,
+        end_date=end_date,
+        channel=channel,
+        item_status=item_status,
+    )
+    return [
+        CampaignCalendarItemRead(
+            id=item.id,
+            campaign_id=item.campaign_id,
+            campaign_name=item.campaign.name,
+            campaign_status=item.campaign.status,
+            client_id=item.campaign.client_id,
+            client_name=item.campaign.client.name,
+            channel=item.channel,
+            publish_date=item.publish_date,
+            status=item.status,
+            content=item.content,
+            content_type=item.content_type,
+            cta=item.cta,
+            owner=item.owner,
+        )
+        for item in items
+        if item.publish_date is not None
+    ]
 
 
 @router.put("/marketing-brief", response_model=MarketingBriefRead)
