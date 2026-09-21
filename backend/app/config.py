@@ -66,6 +66,12 @@ class Settings(BaseSettings):
     # Request timeout (seconds) for gateway calls.
     hackathon_timeout_seconds: float = Field(default=60.0, gt=0)
 
+    # Bound the customer data sent in one model request. The upload endpoint
+    # has its own byte limit, but analysis needs a much smaller, predictable
+    # prompt budget so a large CSV cannot unexpectedly consume the team quota.
+    analysis_max_signals: int = Field(default=200, ge=1, le=10_000)
+    analysis_max_input_chars: int = Field(default=100_000, ge=1, le=10_000_000)
+
     # Confidence display thresholds (configurable). Confidence is stored 0-1
     # internally and shown as a qualitative band, never as a scientific
     # probability. >= high => "High"; >= medium (and < high) => "Medium";

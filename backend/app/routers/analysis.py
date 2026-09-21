@@ -20,6 +20,8 @@ from app.schemas.analysis import (
 )
 from app.services.ai.factory import get_ai_provider
 from app.services.insight_engine.customer_engine import (
+    AnalysisInProgressError,
+    AnalysisInputLimitError,
     ClientNotFoundError,
     CustomerInsightEngine,
     DatasetNotFoundError,
@@ -54,6 +56,10 @@ def analyse_client_dataset(
     except EmptyDatasetError as exc:
         # 422: request is well-formed but the dataset has nothing to analyse.
         raise HTTPException(422, str(exc)) from exc
+    except AnalysisInputLimitError as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
+    except AnalysisInProgressError as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
     except ProviderFailureError as exc:
         raise HTTPException(
             status.HTTP_502_BAD_GATEWAY, f"AI provider failed: {exc}"

@@ -15,6 +15,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
+from app.config import get_settings
 from app.database import Base, get_db
 from app.main import app
 from app.models.analysis_run import AnalysisRun
@@ -25,6 +26,10 @@ from app.schemas.ai_result import AIAnalysisResult
 from app.services.ai.base import AIProvider, SignalInput
 from app.services.ai.factory import get_ai_provider
 from app.services.ai.validation import validate_ai_output
+from app.services.insight_engine.coordinator import (
+    AnalysisAlreadyActiveError,
+    AnalysisCoordinator,
+)
 
 
 class StubProvider(AIProvider):
@@ -39,11 +44,13 @@ class StubProvider(AIProvider):
     def __init__(self) -> None:
         self.payload = {"insights": []}
         self.raise_exc: Exception | None = None
+        self.calls = 0
         # When False, return the payload without self-validation so the engine's
         # own validation/grounding path is exercised directly.
         self.self_validate = True
 
     def analyze_signals(self, signals: Sequence[SignalInput]) -> AIAnalysisResult:
+        self.calls += 1
         if self.raise_exc is not None:
             raise self.raise_exc
         supplied = [s.id for s in signals]
@@ -151,6 +158,74 @@ def test_empty_dataset(env):
 
     resp = client.post(f"/api/clients/{cid}/analyse", json={"dataset_id": did})
     assert resp.status_code == 422
+
+
+def test_signal_limit_rejects_before_provider_call(env, monkeypatch):
+    client, session_factory, stub = env
+    monkeypatch.setattr(get_settings(), "analysis_max_signals", 1)
+    cid, did, _ = _seed(session_factory, ["First signal.", "Second signal."])
+
+    resp = client.post(f"/api/clients/{cid}/analyse", json={"dataset_id": did})
+
+    assert resp.status_code == 422
+    assert "contains 2 signals" in resp.json()["detail"]
+    assert "limit is 1" in resp.json()["detail"]
+    assert stub.calls == 0
+    session = session_factory()
+    try:
+        assert session.query(AnalysisRun).count() == 0
+    finally:
+        session.close()
+
+
+def test_character_limit_rejects_before_provider_call(env, monkeypatch):
+    client, session_factory, stub = env
+    monkeypatch.setattr(get_settings(), "analysis_max_input_chars", 10)
+    cid, did, _ = _seed(session_factory, ["123456", "12345"])
+
+    resp = client.post(f"/api/clients/{cid}/analyse", json={"dataset_id": did})
+
+    assert resp.status_code == 422
+    assert "contains 11 customer-text characters" in resp.json()["detail"]
+    assert "limit is 10" in resp.json()["detail"]
+    assert stub.calls == 0
+
+
+def test_running_analysis_returns_conflict_without_provider_call(env):
+    client, session_factory, stub = env
+    cid, did, _ = _seed(session_factory, ["Feedback text."])
+    session = session_factory()
+    try:
+        session.add(
+            AnalysisRun(
+                client_id=cid,
+                dataset_id=did,
+                status="running",
+                model_provider="stub",
+            )
+        )
+        session.commit()
+    finally:
+        session.close()
+
+    resp = client.post(f"/api/clients/{cid}/analyse", json={"dataset_id": did})
+
+    assert resp.status_code == 409
+    assert "already being analysed" in resp.json()["detail"]
+    assert stub.calls == 0
+
+
+def test_analysis_coordinator_rejects_duplicate_claim_and_releases_it():
+    coordinator = AnalysisCoordinator()
+
+    with coordinator.claim(client_id=1, dataset_id=2):
+        with pytest.raises(AnalysisAlreadyActiveError):
+            with coordinator.claim(client_id=1, dataset_id=2):
+                pytest.fail("duplicate claim should not enter the context")
+
+    # A completed request must release its claim so a later retry can proceed.
+    with coordinator.claim(client_id=1, dataset_id=2):
+        pass
 
 
 def test_dataset_belongs_to_another_client(env):

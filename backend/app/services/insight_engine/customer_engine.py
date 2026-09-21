@@ -28,6 +28,7 @@ from dataclasses import dataclass
 
 from sqlalchemy.orm import Session
 
+from app.config import get_settings
 from app.models.analysis_run import AnalysisRun
 from app.models.customer_insight import CustomerInsight
 from app.models.customer_signal import CustomerSignal
@@ -37,6 +38,10 @@ from app.repositories.dataset_repository import DatasetRepository
 from app.services.ai.base import AIProvider, SignalInput
 from app.services.ai.prompt import build_analysis_prompt
 from app.services.ai.validation import validate_ai_output
+from app.services.insight_engine.coordinator import (
+    AnalysisAlreadyActiveError,
+    analysis_coordinator,
+)
 
 
 class AnalysisError(Exception):
@@ -59,6 +64,14 @@ class EmptyDatasetError(AnalysisError):
     """The dataset has no customer signals to analyse."""
 
 
+class AnalysisInputLimitError(AnalysisError):
+    """The dataset exceeds the configured one-request analysis budget."""
+
+
+class AnalysisInProgressError(AnalysisError):
+    """The same client dataset already has an active analysis."""
+
+
 class ProviderFailureError(AnalysisError):
     """The AI provider raised while analysing."""
 
@@ -77,6 +90,9 @@ class CustomerInsightEngine:
         self._clients = ClientRepository(db)
         self._datasets = DatasetRepository(db)
         self._analysis = AnalysisRepository(db)
+        settings = get_settings()
+        self._max_signals = settings.analysis_max_signals
+        self._max_input_chars = settings.analysis_max_input_chars
 
     def analyse(self, client_id: int, dataset_id: int) -> AnalysisOutput:
         # 1. verify client
@@ -93,10 +109,43 @@ class CustomerInsightEngine:
                 f"Dataset {dataset_id} does not belong to client {client_id}."
             )
 
+        try:
+            with analysis_coordinator.claim(client_id, dataset_id):
+                running = self._analysis.running_run_for_dataset(client_id, dataset_id)
+                if running is not None:
+                    raise AnalysisInProgressError(
+                        f"Dataset {dataset_id} is already being analysed "
+                        f"(analysis run {running.id})."
+                    )
+                return self._analyse_claimed(client_id, dataset_id)
+        except AnalysisAlreadyActiveError as exc:
+            raise AnalysisInProgressError(
+                f"Dataset {dataset_id} is already being analysed."
+            ) from exc
+
+    def _analyse_claimed(self, client_id: int, dataset_id: int) -> AnalysisOutput:
+        """Run analysis after ownership and duplicate-request checks pass."""
+
         # 3. retrieve CustomerSignal records
         signals = self._analysis.signals_for_dataset(dataset_id)
         if not signals:
             raise EmptyDatasetError(f"Dataset {dataset_id} has no customer signals.")
+
+        signal_count = len(signals)
+        if signal_count > self._max_signals:
+            raise AnalysisInputLimitError(
+                f"Dataset {dataset_id} contains {signal_count} signals; "
+                f"the per-analysis limit is {self._max_signals}. "
+                "Use a smaller dataset before running AI analysis."
+            )
+
+        input_chars = sum(len(signal.text) for signal in signals)
+        if input_chars > self._max_input_chars:
+            raise AnalysisInputLimitError(
+                f"Dataset {dataset_id} contains {input_chars} customer-text "
+                f"characters; the per-analysis limit is {self._max_input_chars}. "
+                "Use shorter feedback or a smaller dataset before running AI analysis."
+            )
 
         # Client-isolation guarantee: every gathered signal must belong to the
         # verified client. signals_for_dataset already scopes by the owned

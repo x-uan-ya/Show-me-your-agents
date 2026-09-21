@@ -25,6 +25,22 @@ class AnalysisRepository:
         )
         return list(self._db.scalars(stmt).all())
 
+    def running_run_for_dataset(
+        self, client_id: int, dataset_id: int
+    ) -> AnalysisRun | None:
+        """Return the current recorded run for a client dataset, if any."""
+        stmt = (
+            select(AnalysisRun)
+            .where(
+                AnalysisRun.client_id == client_id,
+                AnalysisRun.dataset_id == dataset_id,
+                AnalysisRun.status == "running",
+            )
+            .order_by(AnalysisRun.id.desc())
+            .limit(1)
+        )
+        return self._db.scalars(stmt).first()
+
     def create_run(
         self,
         *,
