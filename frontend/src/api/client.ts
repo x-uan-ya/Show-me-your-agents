@@ -5,6 +5,7 @@ import type {
   AnalyseResponse,
   BehaviourSummary,
   CampaignGapResponse,
+  CampaignCreateInput,
   Client,
   ColumnMapping,
   CustomerSignal,
@@ -13,6 +14,9 @@ import type {
   HealthResponse,
   ImportResult,
   InsightTypeInfo,
+  MarketingBrief,
+  MarketingBriefRecord,
+  PersistedCampaign,
   UploadResponse,
 } from "../types";
 
@@ -113,6 +117,38 @@ async function postJson<T>(
   );
 }
 
+async function putJson<T>(
+  path: string,
+  body: unknown,
+  signal?: AbortSignal,
+): Promise<T> {
+  return requestJson<T>(
+    path,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    },
+    signal,
+  );
+}
+
+async function patchJson<T>(
+  path: string,
+  body: unknown,
+  signal?: AbortSignal,
+): Promise<T> {
+  return requestJson<T>(
+    path,
+    {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    },
+    signal,
+  );
+}
+
 export function isAbortError(error: unknown): boolean {
   return error instanceof DOMException && error.name === "AbortError";
 }
@@ -201,5 +237,62 @@ export const api = {
       brief,
       signal,
       120_000,
+    ),
+
+  getMarketingBrief: (clientId: number, signal?: AbortSignal) =>
+    getJson<MarketingBriefRecord | null>(
+      `/clients/${clientId}/marketing-brief`,
+      signal,
+    ),
+
+  saveMarketingBrief: (
+    clientId: number,
+    brief: MarketingBrief,
+    signal?: AbortSignal,
+  ) =>
+    putJson<MarketingBriefRecord>(
+      `/clients/${clientId}/marketing-brief`,
+      brief,
+      signal,
+    ),
+
+  createCampaign: (
+    clientId: number,
+    campaign: CampaignCreateInput,
+    signal?: AbortSignal,
+  ) =>
+    postJson<PersistedCampaign>(
+      `/clients/${clientId}/campaigns`,
+      campaign,
+      signal,
+    ),
+
+  listCampaigns: (clientId: number, signal?: AbortSignal) =>
+    getJson<PersistedCampaign[]>(`/clients/${clientId}/campaigns`, signal),
+
+  getCampaign: (
+    clientId: number,
+    campaignId: number,
+    signal?: AbortSignal,
+  ) =>
+    getJson<PersistedCampaign>(
+      `/clients/${clientId}/campaigns/${campaignId}`,
+      signal,
+    ),
+
+  updateCampaignStatus: (
+    clientId: number,
+    campaignId: number,
+    payload: {
+      status: "draft" | "approved" | "revision_requested";
+      reviewer?: string;
+      revision_comment?: string;
+    },
+    signal?: AbortSignal,
+  ) =>
+    patchJson<PersistedCampaign>(
+      `/clients/${clientId}/campaigns/${campaignId}/status`,
+      payload,
+      signal,
     ),
 };

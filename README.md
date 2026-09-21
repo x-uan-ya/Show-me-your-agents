@@ -7,22 +7,22 @@ traceable path:
 
 > **Evidence → Insight → Strategy → Campaign**
 
-The current milestone focuses on proving one SME workflow end to end. Backend
-campaign generation, persistence and publishing are not represented as finished.
+The current milestone proves one SME workflow end to end through durable
+campaign records. Publishing integrations remain future work.
 
 ## Current product status
 
 | Area | Current state | Notes |
 | --- | --- | --- |
 | Client onboarding | Working | Select or quick-create a client through the existing API. |
-| Marketing brief | Frontend prototype | Objective, audience, current message and channels are saved per client in browser storage. |
+| Marketing brief | Working | Objective, audience, current message and channels are stored per client in the backend; browser storage is retained only as a migration/offline fallback. |
 | Customer feedback | Working | Upload CSV, inspect columns and rows, edit the field mapping, then confirm import. |
 | Customer insight | Working | Run analysis on a ready dataset and browse eight behavioural categories. |
 | Evidence traceability | Working | Open supporting feedback and evidence-quality limitations for each insight. |
 | Trial vs retention | Working, secondary | Compares trial, retention and non-repeat drivers for the selected client. |
-| Campaign recommendation | Frontend prototype | Produces a deterministic draft from the current brief and latest in-memory insight result. |
-| Content calendar / schedule | Frontend prototype | Shows a reviewable seven-day, evidence-linked schedule. It is not persisted or published. |
-| Human approval | UI simulation | Approve/revise state is local UI state only. |
+| Campaign recommendation | Working | Produces an evidence-led draft, then saves a client-scoped Campaign linked to its brief, analysis run and primary insight. |
+| Content calendar / schedule | Persisted foundation | Seven-day content items are stored as queryable campaign child records; publishing is not implemented. |
+| Human approval | Persisted foundation | Each campaign has a basic approval record and approve/revise status is saved; reviewer workflow and authentication are not implemented. |
 | Customer-message gap | Implemented | Dataset 3 is validated, compared with the latest evidence-backed client insights through the configured AI provider, and exposed to Campaign Plan. |
 | Campaign feedback loop | Not implemented | No results ingestion, learning loop or trend detection yet. |
 
@@ -36,12 +36,13 @@ does not yet have backend support. This keeps the demo honest.
 3. Upload a CSV and review the suggested field mapping and sample rows.
 4. Confirm the import, then select **Analyse this dataset**.
 5. Run analysis and open **View Evidence** on an insight.
-6. Select **Build campaign plan** to generate the frontend campaign draft.
-7. Review the recommendation, seven-day schedule and simulated approval state.
+6. Select **Build campaign plan** to generate and save the campaign.
+7. Review the recommendation, persisted content items and approval state.
+8. Refresh the page and reopen **Campaign plan** to retrieve the saved campaign.
 
-Keep this sequence in one browser session: the selected client and brief persist,
-but the latest analysis result passed to Campaign Plan does not persist after a
-full page refresh.
+The latest in-memory analysis result is not automatically reconstructed after a
+full page refresh, but the generated campaign, its evidence references and its
+content items are retrieved from the backend.
 
 ## What the insight layer does
 
@@ -89,6 +90,25 @@ to the closest Dataset 3 record and calls
 `POST /api/clients/{client_id}/campaign-gap/auto`. The configured AI provider
 compares that record with the client's latest validated insights and returns
 matched values, message gaps, recommended actions and supporting insight ids.
+
+## Campaign persistence API
+
+Campaign workflow records follow the existing client-scoped FastAPI and
+SQLAlchemy patterns:
+
+- `PUT /api/clients/{client_id}/marketing-brief` — create or update the active brief.
+- `GET /api/clients/{client_id}/marketing-brief` — load the backend brief.
+- `POST /api/clients/{client_id}/campaigns` — atomically save a campaign,
+  content items and its initial approval record.
+- `GET /api/clients/{client_id}/campaigns` — list that client's campaigns.
+- `GET /api/clients/{client_id}/campaigns/{campaign_id}` — retrieve a campaign
+  with content and approval data.
+- `PATCH /api/clients/{client_id}/campaigns/{campaign_id}/status` — persist a
+  draft, approval or revision-requested decision.
+
+Campaign content keeps channel, sequence day, optional publish date and status
+as structured columns so a future Calendar can query them without unpacking an
+opaque AI payload.
 
 ## System architecture
 
@@ -140,7 +160,7 @@ frontend/src/
 │   ├── Dashboard.tsx          # product overview and P0 workflow
 │   ├── ImportData.tsx         # SME brief and CSV ingestion
 │   ├── Insights.tsx           # analysis, filters and evidence access
-│   ├── CampaignPlan.tsx       # clearly labelled frontend-only plan prototype
+│   ├── CampaignPlan.tsx       # generation, persistence and saved-plan retrieval
 │   └── TrialVsRetention.tsx   # secondary behavioural comparison
 ├── components/                # selectors, cards, filters and evidence drawer
 ├── types/index.ts             # shared frontend domain types
@@ -148,7 +168,8 @@ frontend/src/
 ```
 
 The backend remains FastAPI + SQLAlchemy + SQLite for local development, using
-a mock AI provider by default. This frontend pass does not change backend code.
+a mock AI provider by default. SQLite startup creates the additive campaign
+tables through the project's existing metadata initialisation pattern.
 
 ## Run locally
 
@@ -327,9 +348,10 @@ config (`frontend/src/data/sources.ts`) and a reusable
 - [x] Evidence-backed customer insights
 - [x] Evidence-to-campaign frontend handoff
 - [x] Campaign recommendation, calendar and schedule UI prototype
-- [ ] Persist the marketing brief and campaign entities on the backend
+- [x] Persist the marketing brief and campaign entities on the backend
 - [ ] Replace deterministic frontend drafting with an evidence-grounded campaign API
-- [ ] Persist review/approval state and scheduling decisions
+- [x] Persist basic review/approval state
+- [ ] Add explicit scheduling decisions and publish times
 
 ### P1 — intelligence and coordination
 

@@ -38,3 +38,9 @@ class Client(Base):
     analysis_runs: Mapped[list["AnalysisRun"]] = relationship(  # noqa: F821
         back_populates="client", cascade="all, delete-orphan"
     )
+    marketing_brief: Mapped["MarketingBrief | None"] = relationship(  # noqa: F821
+        back_populates="client", cascade="all, delete-orphan", uselist=False
+    )
+    campaigns: Mapped[list["Campaign"]] = relationship(  # noqa: F821
+        back_populates="client", cascade="all, delete-orphan"
+    )

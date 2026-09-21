@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
+import { api, isAbortError } from "./api/client";
 import { Dashboard } from "./pages/Dashboard";
 import { CampaignPlan } from "./pages/CampaignPlan";
 import { CampaignCalendar } from "./pages/CampaignCalendar";
@@ -136,9 +137,11 @@ export default function App() {
   const [brief, setBrief] = useState<MarketingBrief>(() =>
     storedBrief(storedClientId()),
   );
+  const [briefHydratedClientId, setBriefHydratedClientId] = useState<number | null>(null);
   const clientName = clientId === null ? "" : window.localStorage.getItem(CLIENT_NAME_STORAGE_KEY) ?? "";
   const [latestInsights, setLatestInsights] = useState<Insight[]>([]);
   const hasMounted = useRef(false);
+  const briefEditVersion = useRef(0);
 
   useEffect(() => {
     const syncView = () => setView(viewFromHash(window.location.hash));
@@ -158,6 +161,61 @@ export default function App() {
     }
   }, [view]);
 
+  useEffect(() => {
+    setBriefHydratedClientId(null);
+    if (clientId === null) {
+      setBrief(EMPTY_MARKETING_BRIEF);
+      return;
+    }
+
+    const fallback = storedBrief(clientId);
+    setBrief(fallback);
+    const loadVersion = briefEditVersion.current;
+    const controller = new AbortController();
+    api.getMarketingBrief(clientId, controller.signal)
+      .then((record) => {
+        if (controller.signal.aborted) return;
+        if (record && briefEditVersion.current === loadVersion) {
+          const persistedBrief: MarketingBrief = {
+            objective: record.objective,
+            target_audience: record.target_audience,
+            current_message: record.current_message,
+            channels: record.channels,
+          };
+          setBrief(persistedBrief);
+          window.localStorage.setItem(
+            `${BRIEF_STORAGE_PREFIX}${clientId}`,
+            JSON.stringify(persistedBrief),
+          );
+        }
+        setBriefHydratedClientId(clientId);
+      })
+      .catch((error) => {
+        if (!controller.signal.aborted && !isAbortError(error)) {
+          // Keep the browser copy as an offline-safe migration fallback.
+          setBriefHydratedClientId(clientId);
+        }
+      });
+    return () => controller.abort();
+  }, [clientId]);
+
+  useEffect(() => {
+    if (clientId === null || briefHydratedClientId !== clientId) return;
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => {
+      void api.saveMarketingBrief(clientId, brief, controller.signal)
+        .catch((error) => {
+          if (!controller.signal.aborted && !isAbortError(error)) {
+            // localStorage remains available as a safe fallback if the API is offline.
+          }
+        });
+    }, 500);
+    return () => {
+      window.clearTimeout(timeout);
+      controller.abort();
+    };
+  }, [brief, briefHydratedClientId, clientId]);
+
   const navigate = (next: AppView) => {
     const nextHash = hashForView(next);
     if (window.location.hash === nextHash) setView(next);
@@ -175,14 +233,14 @@ export default function App() {
   };
 
   const selectClient = (nextClientId: number | null) => {
-    setClientId((current) => {
-      if (current !== nextClientId) {
-        setDatasetId(null);
-        setLatestInsights([]);
-        setBrief(storedBrief(nextClientId));
-      }
-      return nextClientId;
-    });
+    if (clientId !== nextClientId) {
+      briefEditVersion.current += 1;
+      setDatasetId(null);
+      setLatestInsights([]);
+      setBriefHydratedClientId(null);
+      setBrief(storedBrief(nextClientId));
+    }
+    setClientId(nextClientId);
     if (nextClientId === null) {
       window.localStorage.removeItem(CLIENT_STORAGE_KEY);
     } else {
@@ -191,6 +249,7 @@ export default function App() {
   };
 
   const updateBrief = (nextBrief: MarketingBrief) => {
+    briefEditVersion.current += 1;
     setBrief(nextBrief);
     if (clientId !== null) {
       window.localStorage.setItem(

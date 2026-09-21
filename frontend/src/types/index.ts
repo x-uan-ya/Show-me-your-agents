@@ -30,6 +30,94 @@ export interface MarketingBrief {
   current_message: string;
 }
 
+export interface MarketingBriefRecord extends MarketingBrief {
+  id: number;
+  client_id: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CampaignContentItemInput {
+  channel: string;
+  content: string;
+  content_type?: string | null;
+  cta?: string | null;
+  sequence_day?: number | null;
+  publish_date?: string | null;
+  owner?: string | null;
+  status?: "draft" | "scheduled" | "published" | "cancelled";
+}
+
+export interface CampaignCreateInput {
+  marketing_brief_id: number;
+  analysis_run_id?: number | null;
+  primary_insight_id?: number | null;
+  supporting_insight_ids: number[];
+  name: string;
+  key_message: string;
+  message_gap?: string | null;
+  cta: string;
+  kpi: string;
+  status?: "draft" | "approved" | "revision_requested";
+  start_date?: string | null;
+  end_date?: string | null;
+  strategy_payload: Record<string, unknown>;
+  content_items: CampaignContentItemInput[];
+}
+
+export interface PersistedCampaignContentItem extends CampaignContentItemInput {
+  id: number;
+  campaign_id: number;
+  status: "draft" | "scheduled" | "published" | "cancelled";
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CampaignApproval {
+  id: number;
+  campaign_id: number;
+  status: string;
+  reviewer: string | null;
+  revision_comment: string | null;
+  decided_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CampaignPrimaryInsight {
+  id: number;
+  analysis_run_id: number;
+  title: string;
+  summary: string;
+  confidence: number;
+  evidence_count: number;
+}
+
+export interface PersistedCampaign {
+  id: number;
+  client_id: number;
+  marketing_brief_id: number;
+  analysis_run_id: number | null;
+  primary_insight_id: number | null;
+  supporting_insight_ids: number[];
+  primary_insight: CampaignPrimaryInsight | null;
+  name: string;
+  objective: string;
+  target_audience: string;
+  key_message: string;
+  message_gap: string | null;
+  cta: string;
+  kpi: string;
+  status: string;
+  start_date: string | null;
+  end_date: string | null;
+  strategy_payload: Record<string, unknown>;
+  content_items: PersistedCampaignContentItem[];
+  approval: CampaignApproval | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface CampaignParameter {
   campaign_id: string;
   objective: string;

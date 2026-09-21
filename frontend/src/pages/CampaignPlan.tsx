@@ -9,6 +9,7 @@ import {
   type CustomerSignal,
   type Insight,
   type MarketingBrief,
+  type PersistedCampaign,
 } from "../types";
 
 interface Props {
@@ -154,6 +155,56 @@ function buildExecutionDraft({
   };
 }
 
+function buildCalendar(
+  brief: MarketingBrief,
+  driver: Insight | null,
+  concern: Insight | null,
+  gapResult: CampaignGapResponse | null,
+): CalendarItem[] {
+  const channels = brief.channels.length > 0 ? brief.channels : ["Primary channel"];
+  const matchedValue = gapResult?.analysis.matched_customer_values[0];
+  const messageGap = gapResult?.analysis.message_gaps[0];
+  const recommendedAction = gapResult?.analysis.recommended_actions[0];
+  return [
+    {
+      day: "Day 1",
+      channel: channels[0],
+      content: matchedValue
+        ? `Customer proof: ${matchedValue}`
+        : driver
+        ? `Customer proof: ${driver.title}`
+        : "Lead with the strongest customer-supported value",
+      purpose: "Awareness",
+      evidence: driver,
+    },
+    {
+      day: "Day 3",
+      channel: channels[1 % channels.length],
+      content: messageGap
+        ? `Address the concern: ${messageGap}`
+        : concern
+        ? `Address the concern: ${concern.title}`
+        : "Answer the most important customer concern",
+      purpose: "Trust",
+      evidence: concern,
+    },
+    {
+      day: "Day 5",
+      channel: channels[2 % channels.length],
+      content: recommendedAction ?? "Show the offer in use with a clear next step",
+      purpose: "Consideration",
+      evidence: driver,
+    },
+    {
+      day: "Day 7",
+      channel: channels[0],
+      content: "Invite feedback and capture the next customer signal",
+      purpose: "Learning loop",
+      evidence: concern ?? driver,
+    },
+  ];
+}
+
 function pickInsight(insights: Insight[], categories: string[]): Insight | null {
   return (
     insights.find((insight) => categories.includes(insight.category)) ??
@@ -166,11 +217,14 @@ export function CampaignPlan({ clientId, clientName = "", brief, insights, onNav
   const [generationStatus, setGenerationStatus] = useState<GenerationStatus>("idle");
   const [generationError, setGenerationError] = useState<string | null>(null);
   const [gapResult, setGapResult] = useState<CampaignGapResponse | null>(null);
+  const [persistedCampaign, setPersistedCampaign] = useState<PersistedCampaign | null>(null);
   const [approval, setApproval] = useState<ApprovalState>("draft");
+  const [approvalError, setApprovalError] = useState<string | null>(null);
   const [selectedInsight, setSelectedInsight] = useState<Insight | null>(null);
   const [signalsById, setSignalsById] = useState<Map<number, CustomerSignal>>(new Map());
   const [evidenceWarning, setEvidenceWarning] = useState<string | null>(null);
   const analysisController = useRef<AbortController | null>(null);
+  const campaignListController = useRef<AbortController | null>(null);
   const closeEvidence = useCallback(() => setSelectedInsight(null), []);
   const activeInsights = useMemo(
     () => rankInsights(insights.filter((insight) => insight.client_id === clientId)),
@@ -184,6 +238,9 @@ export function CampaignPlan({ clientId, clientName = "", brief, insights, onNav
   );
   const evidenceReady = activeInsights.length > 0;
   const generated = generationStatus === "success" || generationStatus === "error";
+  const showingPersistedOnly = Boolean(
+    persistedCampaign && generationStatus === "idle" && (!briefReady || !evidenceReady),
+  );
   const keyInsight = activeInsights[0] ?? null;
   const executionDraft = useMemo(
     () =>
@@ -198,11 +255,44 @@ export function CampaignPlan({ clientId, clientName = "", brief, insights, onNav
     setGenerationError(null);
     setGapResult(null);
     setApproval("draft");
+    setApprovalError(null);
     setSelectedInsight(null);
     setSignalsById(new Map());
     setEvidenceWarning(null);
     return () => analysisController.current?.abort();
   }, [clientId, brief, insights]);
+
+  useEffect(() => {
+    setPersistedCampaign(null);
+    if (clientId === null) return;
+    const controller = new AbortController();
+    campaignListController.current?.abort();
+    campaignListController.current = controller;
+    api.listCampaigns(clientId, controller.signal)
+      .then((campaigns) => {
+        if (!controller.signal.aborted) {
+          setPersistedCampaign(
+            campaigns.find((campaign) => campaign.client_id === clientId) ?? null,
+          );
+        }
+      })
+      .catch((error) => {
+        if (!controller.signal.aborted && !isAbortError(error)) {
+          console.error("Saved campaigns could not be loaded", error);
+        }
+      })
+      .finally(() => {
+        if (campaignListController.current === controller) {
+          campaignListController.current = null;
+        }
+      });
+    return () => {
+      controller.abort();
+      if (campaignListController.current === controller) {
+        campaignListController.current = null;
+      }
+    };
+  }, [clientId]);
 
   useEffect(() => {
     setSignalsById(new Map());
@@ -231,17 +321,21 @@ export function CampaignPlan({ clientId, clientName = "", brief, insights, onNav
   const generateCampaign = async () => {
     if (clientId === null || generationStatus === "generating") return;
     const controller = new AbortController();
+    campaignListController.current?.abort();
+    campaignListController.current = null;
     analysisController.current?.abort();
     analysisController.current = controller;
     setGenerationStatus("generating");
     setGenerationError(null);
     setGapResult(null);
+    setPersistedCampaign(null);
     setApproval("draft");
     setSignalsById(new Map());
     setEvidenceWarning(null);
     setSelectedInsight(null);
+    let response: CampaignGapResponse;
     try {
-      const response = await api.analyseCampaignGapAutomatically(
+      response = await api.analyseCampaignGapAutomatically(
         clientId,
         {
           objective: brief.objective,
@@ -256,13 +350,80 @@ export function CampaignPlan({ clientId, clientName = "", brief, insights, onNav
         throw new Error("Campaign gap analysis belongs to a different client");
       }
       setGapResult(response);
-      setGenerationStatus("success");
     } catch (error) {
       if (controller.signal.aborted || isAbortError(error)) return;
       // Preserve the evidence-based local draft when analysis is unavailable.
       console.error("Campaign gap analysis failed", error);
       setGenerationError(
         "Live Customer-Message Gap analysis could not be completed. The evidence-based local campaign draft is shown below.",
+      );
+      setGenerationStatus("error");
+      if (analysisController.current === controller) {
+        analysisController.current = null;
+      }
+      return;
+    }
+
+    try {
+      if (!keyInsight) throw new Error("No usable customer insight is available");
+      const draft = buildExecutionDraft({
+        clientId,
+        clientName,
+        brief,
+        keyInsight,
+        gapResult: response,
+      });
+      const generatedCalendar = buildCalendar(brief, driver, concern, response);
+      const persistedBrief = await api.saveMarketingBrief(
+        clientId,
+        brief,
+        controller.signal,
+      );
+      const activeInsightIds = new Set(activeInsights.map((insight) => insight.id));
+      const supportingInsightIds = Array.from(new Set([
+        keyInsight.id,
+        ...response.analysis.supporting_insight_ids.filter((id) => activeInsightIds.has(id)),
+      ]));
+      const savedCampaign = await api.createCampaign(
+        clientId,
+        {
+          marketing_brief_id: persistedBrief.id,
+          analysis_run_id: keyInsight.analysis_run_id,
+          primary_insight_id: keyInsight.id,
+          supporting_insight_ids: supportingInsightIds,
+          name: draft.name,
+          key_message: draft.recommendedMessage,
+          message_gap: draft.messageGap,
+          cta: draft.cta,
+          kpi: draft.kpi,
+          status: "draft",
+          strategy_payload: {
+            current_message: brief.current_message,
+            gap_analysis: response.analysis,
+          },
+          content_items: generatedCalendar.map((item) => ({
+            channel: item.channel,
+            content: item.content,
+            content_type: item.purpose,
+            cta: item.purpose === "Consideration" ? draft.cta : null,
+            sequence_day: Number(item.day.replace("Day ", "")),
+            publish_date: null,
+            status: "draft",
+          })),
+        },
+        controller.signal,
+      );
+      if (controller.signal.aborted) return;
+      if (savedCampaign.client_id !== clientId) {
+        throw new Error("Persisted campaign belongs to a different client");
+      }
+      setPersistedCampaign(savedCampaign);
+      setGenerationStatus("success");
+    } catch (error) {
+      if (controller.signal.aborted || isAbortError(error)) return;
+      console.error("Campaign persistence failed", error);
+      setGenerationError(
+        "The campaign was generated, but it could not be saved to the backend. Retry to create a durable campaign record.",
       );
       setGenerationStatus("error");
     } finally {
@@ -293,49 +454,43 @@ export function CampaignPlan({ clientId, clientName = "", brief, insights, onNav
   );
 
   const calendar = useMemo<CalendarItem[]>(() => {
-    const channels = brief.channels.length > 0 ? brief.channels : ["Primary channel"];
-    const matchedValue = gapResult?.analysis.matched_customer_values[0];
-    const messageGap = gapResult?.analysis.message_gaps[0];
-    const recommendedAction = gapResult?.analysis.recommended_actions[0];
-    return [
-      {
-        day: "Day 1",
-        channel: channels[0],
-        content: matchedValue
-          ? `Customer proof: ${matchedValue}`
-          : driver
-          ? `Customer proof: ${driver.title}`
-          : "Lead with the strongest customer-supported value",
-        purpose: "Awareness",
-        evidence: driver,
-      },
-      {
-        day: "Day 3",
-        channel: channels[1 % channels.length],
-        content: messageGap
-          ? `Address the concern: ${messageGap}`
-          : concern
-          ? `Address the concern: ${concern.title}`
-          : "Answer the most important customer concern",
-        purpose: "Trust",
-        evidence: concern,
-      },
-      {
-        day: "Day 5",
-        channel: channels[2 % channels.length],
-        content: recommendedAction ?? "Show the offer in use with a clear next step",
-        purpose: "Consideration",
-        evidence: driver,
-      },
-      {
-        day: "Day 7",
-        channel: channels[0],
-        content: "Invite feedback and capture the next customer signal",
-        purpose: "Learning loop",
-        evidence: concern ?? driver,
-      },
-    ];
+    return buildCalendar(brief, driver, concern, gapResult);
   }, [brief.channels, concern, driver, gapResult]);
+
+  const displayedCalendar = useMemo<CalendarItem[]>(() => {
+    if (!persistedCampaign || generationStatus === "idle") return calendar;
+    return persistedCampaign.content_items.map((item, index) => {
+      const sequenceDay = item.sequence_day ?? index + 1;
+      const localItem = calendar.find((candidate) => candidate.day === `Day ${sequenceDay}`);
+      return {
+        day: `Day ${sequenceDay}`,
+        channel: item.channel,
+        content: item.content,
+        purpose: item.content_type ?? "Campaign content",
+        evidence: localItem?.evidence ?? null,
+      };
+    });
+  }, [calendar, generationStatus, persistedCampaign]);
+
+  const updateApproval = async (next: ApprovalState) => {
+    const previous = approval;
+    setApproval(next);
+    setApprovalError(null);
+    if (clientId === null || !persistedCampaign) return;
+    try {
+      const updated = await api.updateCampaignStatus(
+        clientId,
+        persistedCampaign.id,
+        { status: next === "rejected" ? "revision_requested" : next },
+      );
+      setPersistedCampaign(updated);
+    } catch (error) {
+      if (!isAbortError(error)) {
+        setApproval(previous);
+        setApprovalError("Approval could not be saved. The campaign remains available for review.");
+      }
+    }
+  };
 
   return (
     <main className="page-shell">
@@ -363,7 +518,11 @@ export function CampaignPlan({ clientId, clientName = "", brief, insights, onNav
           />
         )}
 
-        {clientId !== null && !briefReady && (
+        {showingPersistedOnly && persistedCampaign && (
+          <PersistedCampaignSummary campaign={persistedCampaign} />
+        )}
+
+        {clientId !== null && !showingPersistedOnly && !briefReady && (
           <EmptyStep
             title="Complete the campaign brief"
             copy="Add a business objective, target audience and at least one marketing channel."
@@ -372,7 +531,7 @@ export function CampaignPlan({ clientId, clientName = "", brief, insights, onNav
           />
         )}
 
-        {clientId !== null && briefReady && !evidenceReady && (
+        {clientId !== null && !showingPersistedOnly && briefReady && !evidenceReady && (
           <EmptyStep
             title="Customer evidence is required"
             copy="Analyse customer feedback before generating campaign direction."
@@ -435,9 +594,19 @@ export function CampaignPlan({ clientId, clientName = "", brief, insights, onNav
 
         {generated && briefReady && evidenceReady && (
           <>
+            {persistedCampaign && (
+              <section className="rounded-2xl border border-emerald-700/60 bg-emerald-950/35 p-4">
+                <p className="text-sm font-semibold text-emerald-200">
+                  Saved to backend as Campaign #{persistedCampaign.id}
+                  <span className="ml-2 font-normal text-emerald-300/80">
+                    · {persistedCampaign.status}
+                  </span>
+                </p>
+              </section>
+            )}
             {generationError && (
               <section className="surface-card border-amber-500/40 p-5 sm:p-6" role="alert">
-                <p className="section-kicker text-amber-300">Live analysis unavailable</p>
+                <p className="section-kicker text-amber-300">Campaign requires attention</p>
                 <p className="mt-2 text-sm leading-6 text-slate-200">{generationError}</p>
                 <button
                   type="button"
@@ -502,6 +671,7 @@ export function CampaignPlan({ clientId, clientName = "", brief, insights, onNav
             {executionDraft && (
               <CampaignExecutionBrief
                 draft={executionDraft}
+                persistedCampaign={persistedCampaign}
                 onViewEvidence={() => setSelectedInsight(executionDraft.keyInsight)}
               />
             )}
@@ -536,7 +706,7 @@ export function CampaignPlan({ clientId, clientName = "", brief, insights, onNav
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800">
-                    {calendar.map((item) => (
+                    {displayedCalendar.map((item) => (
                       <tr key={`${item.day}-${item.channel}`} className="text-slate-300">
                         <td className="whitespace-nowrap px-5 py-4 font-semibold text-white">
                           {item.day}
@@ -566,26 +736,31 @@ export function CampaignPlan({ clientId, clientName = "", brief, insights, onNav
                         : "Campaign returned for revision"}
                   </h2>
                   <p className="mt-2 text-sm text-slate-400">
-                    Approval is simulated locally for the frontend prototype.
+                    {persistedCampaign
+                      ? `Approval status is persisted with Campaign #${persistedCampaign.id}.`
+                      : "Save the campaign before approval can be persisted."}
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-3">
                   <button
                     type="button"
-                    onClick={() => setApproval("rejected")}
+                    onClick={() => void updateApproval("rejected")}
                     className="secondary-button"
                   >
                     Request revision
                   </button>
                   <button
                     type="button"
-                    onClick={() => setApproval("approved")}
+                    onClick={() => void updateApproval("approved")}
                     className="success-button"
                   >
                     Approve campaign
                   </button>
                 </div>
               </div>
+              {approvalError && (
+                <p role="alert" className="mt-4 text-sm text-amber-300">{approvalError}</p>
+              )}
             </section>
           </>
         )}
@@ -603,19 +778,28 @@ export function CampaignPlan({ clientId, clientName = "", brief, insights, onNav
 
 function CampaignExecutionBrief({
   draft,
+  persistedCampaign,
   onViewEvidence,
 }: {
   draft: CampaignExecutionDraft;
+  persistedCampaign: PersistedCampaign | null;
   onViewEvidence: () => void;
 }) {
+  const name = persistedCampaign?.name ?? draft.name;
+  const objective = persistedCampaign?.objective ?? draft.objective;
+  const targetAudience = persistedCampaign?.target_audience ?? draft.targetAudience;
+  const messageGap = persistedCampaign?.message_gap ?? draft.messageGap;
+  const recommendedMessage = persistedCampaign?.key_message ?? draft.recommendedMessage;
+  const cta = persistedCampaign?.cta ?? draft.cta;
+  const kpi = persistedCampaign?.kpi ?? draft.kpi;
   return (
     <article className="surface-card p-5 sm:p-6" aria-label="Campaign execution brief">
       <p className="section-kicker">Execution-ready campaign brief</p>
-      <h2 className="mt-2 text-2xl font-semibold text-white">{draft.name}</h2>
+      <h2 className="mt-2 text-2xl font-semibold text-white">{name}</h2>
       <dl className="mt-6 grid gap-5 md:grid-cols-2">
-        <PlanField label="Campaign name"><p>{draft.name}</p></PlanField>
-        <PlanField label="Objective"><p>{draft.objective}</p></PlanField>
-        <PlanField label="Target audience"><p>{draft.targetAudience}</p></PlanField>
+        <PlanField label="Campaign name"><p>{name}</p></PlanField>
+        <PlanField label="Objective"><p>{objective}</p></PlanField>
+        <PlanField label="Target audience"><p>{targetAudience}</p></PlanField>
         <PlanField label="Key customer insight">
           <p>{draft.keyInsight.title}</p>
           <p className="mt-1 text-sm text-slate-400">{draft.keyInsight.summary}</p>
@@ -628,17 +812,74 @@ function CampaignExecutionBrief({
             View supporting evidence →
           </button>
         </PlanField>
-        <PlanField label="Customer–Message Gap"><p>{draft.messageGap}</p></PlanField>
-        <PlanField label="Recommended key message"><p>{draft.recommendedMessage}</p></PlanField>
+        <PlanField label="Customer–Message Gap"><p>{messageGap}</p></PlanField>
+        <PlanField label="Recommended key message"><p>{recommendedMessage}</p></PlanField>
         <PlanField label="Channels"><p>{draft.channels.join(", ")}</p></PlanField>
         <PlanField label="Content / activation ideas">
           <ul className="list-disc space-y-2 pl-5">
             {draft.contentIdeas.map((idea) => <li key={idea}>{idea}</li>)}
           </ul>
         </PlanField>
-        <PlanField label="Call to action (CTA)"><p>{draft.cta}</p></PlanField>
-        <PlanField label="KPI / success metric"><p>{draft.kpi}</p></PlanField>
+        <PlanField label="Call to action (CTA)"><p>{cta}</p></PlanField>
+        <PlanField label="KPI / success metric"><p>{kpi}</p></PlanField>
       </dl>
+    </article>
+  );
+}
+
+function PersistedCampaignSummary({ campaign }: { campaign: PersistedCampaign }) {
+  return (
+    <article className="surface-card overflow-hidden" aria-label={`Saved campaign #${campaign.id}`}>
+      <div className="border-b border-slate-800 p-5 sm:p-6">
+        <p className="section-kicker">Retrieved from campaign database</p>
+        <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-2xl font-semibold text-white">{campaign.name}</h2>
+          <span className="context-pill">Campaign #{campaign.id} · {campaign.status}</span>
+        </div>
+        <p className="mt-3 text-sm leading-6 text-slate-300">
+          {campaign.objective} · {campaign.target_audience}
+        </p>
+      </div>
+      <dl className="grid gap-4 p-5 sm:grid-cols-2 sm:p-6">
+        {campaign.primary_insight && (
+          <PlanField label="Key customer insight">
+            <p>{campaign.primary_insight.title}</p>
+            <p className="mt-1 text-sm text-slate-400">{campaign.primary_insight.summary}</p>
+          </PlanField>
+        )}
+        <PlanField label="Customer–Message Gap">
+          <p>{campaign.message_gap ?? "No message gap was saved."}</p>
+        </PlanField>
+        <PlanField label="Recommended key message"><p>{campaign.key_message}</p></PlanField>
+        <PlanField label="Call to action (CTA)"><p>{campaign.cta}</p></PlanField>
+        <PlanField label="KPI / success metric"><p>{campaign.kpi}</p></PlanField>
+        <PlanField label="Approval">
+          <p>{campaign.approval?.status ?? "pending"}</p>
+        </PlanField>
+      </dl>
+      <div className="overflow-x-auto border-t border-slate-800">
+        <table className="min-w-full text-left text-sm">
+          <caption className="sr-only">Persisted campaign content items</caption>
+          <thead className="bg-slate-950/70 text-slate-400">
+            <tr>
+              <th scope="col" className="px-5 py-3 font-medium">Sequence</th>
+              <th scope="col" className="px-5 py-3 font-medium">Channel</th>
+              <th scope="col" className="px-5 py-3 font-medium">Content</th>
+              <th scope="col" className="px-5 py-3 font-medium">Status</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-800">
+            {campaign.content_items.map((item, index) => (
+              <tr key={item.id} className="text-slate-300">
+                <td className="px-5 py-4">Day {item.sequence_day ?? index + 1}</td>
+                <td className="px-5 py-4">{item.channel}</td>
+                <td className="min-w-72 px-5 py-4">{item.content}</td>
+                <td className="px-5 py-4">{item.status}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </article>
   );
 }

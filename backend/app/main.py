@@ -19,6 +19,7 @@ from app.routers import (
     analysis_router,
     behaviour_router,
     campaign_gap_router,
+    campaigns_router,
     clients_datasets_router,
     clients_router,
     evaluation_router,
@@ -54,6 +55,7 @@ app.include_router(clients_datasets_router, prefix=settings.api_prefix)
 app.include_router(analysis_router, prefix=settings.api_prefix)
 app.include_router(behaviour_router, prefix=settings.api_prefix)
 app.include_router(campaign_gap_router, prefix=settings.api_prefix)
+app.include_router(campaigns_router, prefix=settings.api_prefix)
 app.include_router(handoff_router, prefix=settings.api_prefix)
 app.include_router(evaluation_router, prefix=settings.api_prefix)
 
