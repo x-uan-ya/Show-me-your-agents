@@ -19,6 +19,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, s
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.models.client import Client
 from app.repositories.client_repository import ClientRepository
 from app.repositories.dataset_repository import DatasetRepository
 from app.schemas.ingestion import (
@@ -28,6 +29,7 @@ from app.schemas.ingestion import (
 )
 from app.services.ingestion.csv_ingestion import CsvIngestionService
 from app.services.ingestion.readers import IngestionError
+from app.services.auth.dependencies import require_client_access
 
 # Development file-size limit (5 MB). Kept modest on purpose for the hackathon.
 MAX_UPLOAD_BYTES = 5 * 1024 * 1024
@@ -59,10 +61,8 @@ async def upload_dataset(
     file: UploadFile = File(...),
     name: str | None = Form(default=None),
     db: Session = Depends(get_db),
+    _: Client = Depends(require_client_access),
 ) -> UploadResponse:
-    if ClientRepository(db).get(client_id) is None:
-        _reject(f"Client {client_id} not found", status.HTTP_404_NOT_FOUND)
-
     filename = file.filename or "upload.csv"
     if not filename.lower().endswith(_ALLOWED_EXTENSIONS):
         _reject("Only .csv files are supported.")
@@ -107,10 +107,8 @@ def confirm_mapping(
     dataset_id: int,
     payload: ConfirmMappingRequest,
     db: Session = Depends(get_db),
+    _: Client = Depends(require_client_access),
 ) -> ImportResultResponse:
-    if ClientRepository(db).get(client_id) is None:
-        _reject(f"Client {client_id} not found", status.HTTP_404_NOT_FOUND)
-
     # Client isolation: only operate on a dataset owned by this client.
     dataset = DatasetRepository(db).get_for_client(dataset_id, client_id)
     if dataset is None:

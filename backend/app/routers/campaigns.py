@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.client import Client
+from app.models.user import User
 from app.repositories.campaign_repository import CampaignReferenceError, CampaignRepository
 from app.schemas.campaign import (
     CampaignCalendarItemRead,
@@ -25,6 +26,12 @@ from app.services.ai.factory import get_ai_provider
 from app.services.campaign_generation.service import (
     CampaignGenerationError,
     CampaignGenerationService,
+)
+from app.services.auth.dependencies import (
+    accessible_client_ids,
+    get_current_user,
+    require_client_access,
+    user_can_access_client,
 )
 
 router = APIRouter(prefix="/clients/{client_id}", tags=["campaigns"])
@@ -47,6 +54,7 @@ def list_calendar_items(
     channel: str | None = Query(default=None, min_length=1, max_length=128),
     item_status: ContentStatus | None = Query(default=None, alias="status"),
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> list[CampaignCalendarItemRead]:
     """Return persisted, dated content items with campaign and client context."""
 
@@ -57,9 +65,12 @@ def list_calendar_items(
         )
     if client_id is not None:
         _require_client(db, client_id)
+        if not user_can_access_client(db, current_user, client_id):
+            raise HTTPException(status.HTTP_403_FORBIDDEN, "You do not have access to this client")
 
     items = CampaignRepository(db).list_calendar_items(
         client_id=client_id,
+        client_ids=accessible_client_ids(db, current_user) if client_id is None else None,
         start_date=start_date,
         end_date=end_date,
         channel=channel,
@@ -92,13 +103,18 @@ def update_calendar_item_status(
     payload: CampaignContentStatusUpdate,
     client_id: int | None = Query(default=None, ge=1),
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> CampaignCalendarItemRead:
     """Simulate scheduling or publishing without calling an external platform."""
     if client_id is not None:
         _require_client(db, client_id)
+        if not user_can_access_client(db, current_user, client_id):
+            raise HTTPException(status.HTTP_403_FORBIDDEN, "You do not have access to this client")
     item = CampaignRepository(db).get_calendar_item(item_id, client_id)
     if item is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Calendar item not found")
+    if not user_can_access_client(db, current_user, item.campaign.client_id):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "You do not have access to this client")
     item = CampaignRepository(db).update_calendar_item_status(item, payload)
     return CampaignCalendarItemRead(
         id=item.id,
@@ -122,8 +138,8 @@ def save_marketing_brief(
     client_id: int,
     payload: MarketingBriefWrite,
     db: Session = Depends(get_db),
+    _: Client = Depends(require_client_access),
 ) -> MarketingBriefRead:
-    _require_client(db, client_id)
     brief = CampaignRepository(db).upsert_brief(client_id, payload)
     return MarketingBriefRead.model_validate(brief)
 
@@ -132,8 +148,8 @@ def save_marketing_brief(
 def get_marketing_brief(
     client_id: int,
     db: Session = Depends(get_db),
+    _: Client = Depends(require_client_access),
 ) -> MarketingBriefRead | None:
-    _require_client(db, client_id)
     brief = CampaignRepository(db).get_brief(client_id)
     return MarketingBriefRead.model_validate(brief) if brief else None
 
@@ -147,8 +163,8 @@ def create_campaign(
     client_id: int,
     payload: CampaignCreate,
     db: Session = Depends(get_db),
+    _: Client = Depends(require_client_access),
 ) -> CampaignRead:
-    _require_client(db, client_id)
     try:
         campaign = CampaignRepository(db).create_campaign(client_id, payload)
     except CampaignReferenceError as exc:
@@ -166,9 +182,9 @@ def generate_campaign(
     payload: CampaignGenerateRequest,
     db: Session = Depends(get_db),
     provider: AIProvider = Depends(get_ai_provider),
+    _: Client = Depends(require_client_access),
 ) -> CampaignGenerationRead:
     """Generate the campaign and save it in one backend-owned workflow."""
-    _require_client(db, client_id)
     try:
         campaign, gap = CampaignGenerationService(db, provider).generate(
             client_id, payload
@@ -187,8 +203,8 @@ def generate_campaign(
 def list_campaigns(
     client_id: int,
     db: Session = Depends(get_db),
+    _: Client = Depends(require_client_access),
 ) -> list[CampaignRead]:
-    _require_client(db, client_id)
     return [
         CampaignRead.model_validate(campaign)
         for campaign in CampaignRepository(db).list_campaigns(client_id)
@@ -200,8 +216,8 @@ def get_campaign(
     client_id: int,
     campaign_id: int,
     db: Session = Depends(get_db),
+    _: Client = Depends(require_client_access),
 ) -> CampaignRead:
-    _require_client(db, client_id)
     campaign = CampaignRepository(db).get_campaign(client_id, campaign_id)
     if campaign is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Campaign not found")
@@ -214,8 +230,8 @@ def update_campaign_status(
     campaign_id: int,
     payload: CampaignStatusUpdate,
     db: Session = Depends(get_db),
+    _: Client = Depends(require_client_access),
 ) -> CampaignRead:
-    _require_client(db, client_id)
     repo = CampaignRepository(db)
     campaign = repo.get_campaign(client_id, campaign_id)
     if campaign is None:

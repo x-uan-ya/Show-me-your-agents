@@ -5,6 +5,17 @@ export interface HealthResponse {
   status: string;
 }
 
+export type UserRole = "admin" | "strategist" | "reviewer";
+
+export interface CurrentUser {
+  id: number;
+  email: string;
+  display_name: string;
+  role: UserRole;
+  is_active: boolean;
+  created_at: string;
+}
+
 export interface InsightTypeInfo {
   type: string;
   label: string;

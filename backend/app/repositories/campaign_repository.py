@@ -64,6 +64,7 @@ class CampaignRepository:
         self,
         *,
         client_id: int | None = None,
+        client_ids: set[int] | None = None,
         start_date: date | None = None,
         end_date: date | None = None,
         channel: str | None = None,
@@ -81,6 +82,10 @@ class CampaignRepository:
         )
         if client_id is not None:
             stmt = stmt.where(Campaign.client_id == client_id)
+        elif client_ids is not None:
+            if not client_ids:
+                return []
+            stmt = stmt.where(Campaign.client_id.in_(client_ids))
         if start_date is not None:
             stmt = stmt.where(CampaignContentItem.publish_date >= start_date)
         if end_date is not None:

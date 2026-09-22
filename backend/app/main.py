@@ -17,6 +17,7 @@ from app.config import get_settings
 from app.database import init_db
 from app.routers import (
     analysis_router,
+    auth_router,
     behaviour_router,
     calendar_router,
     campaign_gap_router,
@@ -50,6 +51,7 @@ app.add_middleware(
 )
 
 app.include_router(health_router, prefix=settings.api_prefix)
+app.include_router(auth_router, prefix=settings.api_prefix)
 app.include_router(insights_router, prefix=settings.api_prefix)
 app.include_router(clients_router, prefix=settings.api_prefix)
 app.include_router(clients_datasets_router, prefix=settings.api_prefix)

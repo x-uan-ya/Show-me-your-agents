@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.models.client import Client
 from app.repositories.analysis_repository import AnalysisRepository
 from app.services.ai.base import AIProvider
 from app.schemas.analysis import (
@@ -30,6 +31,7 @@ from app.services.insight_engine.customer_engine import (
     ProviderFailureError,
 )
 from app.utils.confidence import confidence_label
+from app.services.auth.dependencies import require_client_access
 
 router = APIRouter(prefix="/clients", tags=["analysis"])
 
@@ -40,6 +42,7 @@ def analyse_client_dataset(
     payload: AnalyseRequest,
     db: Session = Depends(get_db),
     provider: AIProvider = Depends(get_ai_provider),
+    _: Client = Depends(require_client_access),
 ) -> AnalyseResponse:
     engine = CustomerInsightEngine(db, provider)
 

@@ -14,6 +14,7 @@ campaign records. Publishing integrations remain future work.
 
 | Area | Current state | Notes |
 | --- | --- | --- |
+| Login and client access | Working locally | HttpOnly signed session cookie, admin/strategist/reviewer roles and direct client memberships. |
 | Client onboarding | Working | Select or quick-create a client through the existing API. |
 | Marketing brief | Working | Objective, audience, current message and channels are stored per client in the backend; browser storage is retained only as a migration/offline fallback. |
 | Customer feedback | Working | Upload CSV, inspect columns and rows, edit the field mapping, then confirm import. |
@@ -22,7 +23,7 @@ campaign records. Publishing integrations remain future work.
 | Trial vs retention | Working, secondary | Compares trial, retention and non-repeat drivers for the selected client. |
 | Campaign recommendation | Working | Produces an evidence-led draft, then saves a client-scoped Campaign linked to its brief, analysis run and primary insight. |
 | Content calendar / schedule | Persisted foundation | Seven-day content items are stored as queryable campaign child records; publishing is not implemented. |
-| Human approval | Persisted foundation | Each campaign has a basic approval record and approve/revise status is saved; reviewer workflow and authentication are not implemented. |
+| Human approval | Persisted foundation | Each campaign has a basic approval record and approve/revise status is saved; role-specific reviewer workflow is not implemented. |
 | Customer-message gap | Implemented | Dataset 3 is validated, compared with the latest evidence-backed client insights through the configured AI provider, and exposed to Campaign Plan. |
 | Campaign feedback loop | Not implemented | No results ingestion, learning loop or trend detection yet. |
 
@@ -202,6 +203,25 @@ Then run `npm run dev`. Backend is on <http://localhost:8000>, frontend on
 <http://localhost:5173>, and API docs are at <http://localhost:8000/docs>.
 The Vite development server proxies `/api` to the backend, so creating clients
 and using Trial vs Retention works without a separate browser CORS setup.
+
+### Create local demo users
+
+Authentication uses persistent database users. New users can register with a
+name, email and password from the public product homepage; self-registered users
+receive the `strategist` role and begin with an empty client workspace. After
+setup, create the local admin, strategist and reviewer demo accounts from the
+`backend` directory:
+
+```bash
+.venv/bin/python -m app.scripts.seed_demo_users
+```
+
+The command securely prompts for a demo password (or reads
+`DEMO_USER_PASSWORD`) and prints the three non-production login email addresses.
+It never writes the password into frontend source. Admin can access every client;
+strategist and reviewer are assigned to the first existing client when present.
+Set a long random `AUTH_SECRET` and enable `AUTH_COOKIE_SECURE` for HTTPS outside
+local development, as shown in `backend/.env.example`.
 
 You can also run either side alone: `npm run dev:backend` or
 `npm run dev:frontend`.
@@ -391,7 +411,8 @@ config (`frontend/src/data/sources.ts`) and a reusable
 ### P1 — intelligence and coordination
 
 - [x] Customer-message gap analysis
-- [ ] Multi-user agency workflow and authentication
+- [x] Minimal authentication, roles and direct client access memberships
+- [ ] Full multi-user agency workflow and membership administration UI
 - [ ] Stronger client workspace separation in the UI
 - [ ] Campaign coordination and durable approval history
 
@@ -411,7 +432,7 @@ Do not treat P1 or P2 as a substitute for stabilising the P0 workflow.
 - Small or self-selected samples may not represent the whole customer base.
 - AI credentials stay on the backend; no provider key belongs in the frontend.
 - Publishing and other high-impact actions require real human approval before a production release.
-- The current prototype has no production authentication or deployment configuration.
+- Local signed-cookie authentication is implemented; production identity federation and deployment configuration are not.
 
 ## Security principles
 
@@ -428,7 +449,8 @@ Do not treat P1 or P2 as a substitute for stabilising the P0 workflow.
 
 ## Implemented safeguards
 
-Hackathon-scoped hardening (full authentication is intentionally not built yet).
+Hackathon-scoped hardening now includes persistent users, scrypt password hashes,
+signed HttpOnly cookie sessions, roles, and backend-enforced client memberships.
 
 **Client isolation (backend-enforced).** Every route that touches a
 client-owned resource (datasets, customer signals, insights, insight evidence,

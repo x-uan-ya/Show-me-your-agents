@@ -11,6 +11,7 @@ import type {
   CampaignGenerationResponse,
   Client,
   ColumnMapping,
+  CurrentUser,
   CustomerSignal,
   Dataset,
   EvidenceQuality,
@@ -87,6 +88,7 @@ async function requestJson<T>(
   try {
     const response = await fetch(`${API_BASE_URL}${path}`, {
       ...init,
+      credentials: "include",
       signal: controller.signal,
     });
     if (!response.ok) throw new Error(await parseError(response));
@@ -160,6 +162,23 @@ export function isAbortError(error: unknown): boolean {
 }
 
 export const api = {
+  register: (
+    displayName: string,
+    email: string,
+    password: string,
+    signal?: AbortSignal,
+  ) => postJson<CurrentUser>(
+    "/auth/register",
+    { display_name: displayName, email, password },
+    signal,
+  ),
+  login: (email: string, password: string, signal?: AbortSignal) =>
+    postJson<CurrentUser>("/auth/login", { email, password }, signal),
+  currentUser: (signal?: AbortSignal) =>
+    getJson<CurrentUser>("/auth/me", signal),
+  logout: (signal?: AbortSignal) =>
+    requestJson<void>("/auth/logout", { method: "POST" }, signal),
+
   health: (signal?: AbortSignal) => getJson<HealthResponse>("/health", signal),
   taxonomy: (signal?: AbortSignal) =>
     getJson<InsightTypeInfo[]>("/insights/taxonomy", signal),

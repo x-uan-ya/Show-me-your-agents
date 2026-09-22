@@ -44,3 +44,6 @@ class Client(Base):
     campaigns: Mapped[list["Campaign"]] = relationship(  # noqa: F821
         back_populates="client", cascade="all, delete-orphan"
     )
+    memberships: Mapped[list["ClientMembership"]] = relationship(  # noqa: F821
+        back_populates="client", cascade="all, delete-orphan"
+    )

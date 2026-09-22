@@ -9,7 +9,7 @@ external API keys.
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import AliasChoices, Field
+from pydantic import AliasChoices, Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 AIProvider = Literal["mock", "hackathon"]
@@ -31,6 +31,12 @@ class Settings(BaseSettings):
 
     # Database (SQLite for development, swappable via env)
     database_url: str = Field(default="sqlite:///./customer_insight.db")
+
+    # Local authentication. Production deployments must override AUTH_SECRET.
+    auth_secret: SecretStr = Field(default="development-only-change-this-secret")
+    auth_cookie_name: str = Field(default="smy_agents_session")
+    auth_session_seconds: int = Field(default=8 * 60 * 60, ge=300, le=30 * 24 * 60 * 60)
+    auth_cookie_secure: bool = Field(default=False)
 
     # CORS: comma-separated list of allowed origins for the frontend.
     cors_origins: str = Field(default="http://localhost:5173,http://127.0.0.1:5173")

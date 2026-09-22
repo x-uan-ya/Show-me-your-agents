@@ -21,11 +21,13 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.models.client import Client
 from app.schemas.insight_context import ContextInsight, InsightContext
 from app.services.insight_engine.insight_context import (
     ContextClientNotFoundError,
     InsightContextService,
 )
+from app.services.auth.dependencies import require_client_access
 
 router = APIRouter(prefix="/clients", tags=["handoff"])
 
@@ -52,7 +54,9 @@ def _build_context(client_id: int, db: Session) -> InsightContext:
 
 @router.get("/{client_id}/insight-context", response_model=InsightContext)
 def insight_context(
-    client_id: int, db: Session = Depends(get_db)
+    client_id: int,
+    db: Session = Depends(get_db),
+    _: Client = Depends(require_client_access),
 ) -> InsightContext:
     """Structured, validated customer-insight context for downstream use."""
     return _build_context(client_id, db)
@@ -111,6 +115,7 @@ def export_insights(
     client_id: int,
     format: str = Query("json", pattern="^(json|csv)$"),
     db: Session = Depends(get_db),
+    _: Client = Depends(require_client_access),
 ):
     """Export the client's insight context as JSON (default) or CSV."""
     context = _build_context(client_id, db)

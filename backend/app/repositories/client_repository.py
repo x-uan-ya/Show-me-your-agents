@@ -13,6 +13,7 @@ from app.models.client import Client
 from app.models.customer_insight import CustomerInsight
 from app.models.customer_signal import CustomerSignal
 from app.models.dataset import Dataset
+from app.models.user import ClientMembership, User
 from app.schemas.client import ClientCreate
 
 
@@ -44,6 +45,17 @@ class ClientRepository:
 
     def list(self) -> list[Client]:
         return list(self._db.scalars(select(Client).order_by(Client.id)).all())
+
+    def list_for_user(self, user: User) -> list[Client]:
+        if user.role == "admin":
+            return self.list()
+        stmt = (
+            select(Client)
+            .join(ClientMembership, ClientMembership.client_id == Client.id)
+            .where(ClientMembership.user_id == user.id)
+            .order_by(Client.id)
+        )
+        return list(self._db.scalars(stmt).all())
 
     def list_datasets(self, client_id: int) -> list[Dataset]:
         stmt = select(Dataset).where(Dataset.client_id == client_id).order_by(Dataset.id)

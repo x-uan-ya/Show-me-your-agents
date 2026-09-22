@@ -1,6 +1,7 @@
 """API routers."""
 
 from app.routers.analysis import router as analysis_router
+from app.routers.auth import router as auth_router
 from app.routers.behaviour import router as behaviour_router
 from app.routers.campaign_gap import router as campaign_gap_router
 from app.routers.campaigns import calendar_router, router as campaigns_router
@@ -13,6 +14,7 @@ from app.routers.insights import router as insights_router
 
 __all__ = [
     "analysis_router",
+    "auth_router",
     "behaviour_router",
     "campaign_gap_router",
     "calendar_router",

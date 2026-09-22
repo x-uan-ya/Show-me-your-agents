@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { api, isAbortError } from "./api/client";
+import { useOptionalAuth } from "./auth/AuthContext";
 import { Dashboard } from "./pages/Dashboard";
 import { CampaignPlan } from "./pages/CampaignPlan";
 import { CampaignCalendar } from "./pages/CampaignCalendar";
@@ -190,6 +191,7 @@ function saveAnalysis(clientId: number | null, datasetId: number | null, insight
 }
 
 export default function App() {
+  const auth = useOptionalAuth();
   const [view, setView] = useState<AppView>(() =>
     viewFromHash(window.location.hash),
   );
@@ -383,6 +385,16 @@ export default function App() {
           ))}
         </nav>
 
+        {auth?.currentUser && (
+          <section className="sidebar-user" aria-label="Signed in user">
+            <div>
+              <strong>{auth.currentUser.display_name}</strong>
+              <span>{auth.currentUser.role}</span>
+            </div>
+            <button type="button" onClick={() => void auth.logout()}>Logout</button>
+          </section>
+        )}
+
         <div className="sidebar-loop">
           <div className="sidebar-help-heading">
             <span className="sidebar-loop-mark" aria-hidden="true">
@@ -419,6 +431,11 @@ export default function App() {
           <span className={`mobile-client ${clientId === null ? "is-idle" : "is-active"}`}>
             {clientId === null ? "No client" : `Client #${clientName || clientId}`}
           </span>
+          {auth?.currentUser && (
+            <button className="mobile-logout" type="button" onClick={() => void auth.logout()}>
+              Logout
+            </button>
+          )}
         </header>
 
         <nav aria-label="Mobile navigation" className="mobile-tabs">

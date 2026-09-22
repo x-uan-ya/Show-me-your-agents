@@ -9,18 +9,22 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.models.client import Client
 from app.schemas.behaviour import BehaviourSummary
 from app.services.insight_engine.behaviour_summary import (
     BehaviourSummaryService,
     ClientNotFoundError,
 )
+from app.services.auth.dependencies import require_client_access
 
 router = APIRouter(prefix="/clients", tags=["behaviour"])
 
 
 @router.get("/{client_id}/behaviour-summary", response_model=BehaviourSummary)
 def behaviour_summary(
-    client_id: int, db: Session = Depends(get_db)
+    client_id: int,
+    db: Session = Depends(get_db),
+    _: Client = Depends(require_client_access),
 ) -> BehaviourSummary:
     service = BehaviourSummaryService(db)
     try:

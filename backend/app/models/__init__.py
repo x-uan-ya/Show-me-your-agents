@@ -10,6 +10,7 @@ from app.models.feedback import FeedbackItem
 from app.models.insight import Insight
 from app.models.insight_evidence import InsightEvidence
 from app.models.marketing_brief import MarketingBrief
+from app.models.user import ClientMembership, User
 
 __all__ = [
     "AnalysisRun",
@@ -24,4 +25,6 @@ __all__ = [
     "Insight",
     "InsightEvidence",
     "MarketingBrief",
+    "ClientMembership",
+    "User",
 ]
