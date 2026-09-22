@@ -15,6 +15,7 @@ class ClientRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
+    workspace_id: int | None
     name: str
     industry: str | None
     description: str | None

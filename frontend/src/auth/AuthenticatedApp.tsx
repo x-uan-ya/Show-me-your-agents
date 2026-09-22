@@ -13,7 +13,7 @@ function modeFromHash(): AuthMode | null {
 }
 
 function AuthGate() {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { currentUser, isAuthenticated, isLoading } = useAuth();
   const [authMode, setAuthMode] = useState<AuthMode | null>(modeFromHash);
 
   useEffect(() => {
@@ -44,7 +44,9 @@ function AuthGate() {
     );
   }
 
-  if (isAuthenticated) return <App />;
+  if (isAuthenticated && currentUser) {
+    return <App key={`${currentUser.id}:${currentUser.workspace_id}`} />;
+  }
 
   return (
     <>

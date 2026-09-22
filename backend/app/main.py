@@ -28,6 +28,7 @@ from app.routers import (
     handoff_router,
     health_router,
     insights_router,
+    workspaces_router,
 )
 
 settings = get_settings()
@@ -52,6 +53,7 @@ app.add_middleware(
 
 app.include_router(health_router, prefix=settings.api_prefix)
 app.include_router(auth_router, prefix=settings.api_prefix)
+app.include_router(workspaces_router, prefix=settings.api_prefix)
 app.include_router(insights_router, prefix=settings.api_prefix)
 app.include_router(clients_router, prefix=settings.api_prefix)
 app.include_router(clients_datasets_router, prefix=settings.api_prefix)

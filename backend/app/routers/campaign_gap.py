@@ -5,7 +5,6 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.client import Client
-from app.models.user import User
 from app.schemas.campaign_gap import (
     CampaignGapAutoRequest,
     CampaignGapRequest,
@@ -23,14 +22,18 @@ from app.services.campaign_gap.service import (
     CampaignNotFoundError,
     list_campaign_parameters,
 )
-from app.services.auth.dependencies import get_current_user, require_client_access
+from app.services.auth.dependencies import (
+    AccessContext,
+    get_current_access,
+    require_client_write,
+)
 
 router = APIRouter(tags=["campaign-gap"])
 
 
 @router.get("/campaign-parameters", response_model=list[CampaignParameterRead])
 def campaign_parameters(
-    _: User = Depends(get_current_user),
+    _: AccessContext = Depends(get_current_access),
 ) -> list[CampaignParameterRead]:
     try:
         return list_campaign_parameters()
@@ -46,7 +49,7 @@ def analyse_campaign_gap(
     payload: CampaignGapRequest,
     db: Session = Depends(get_db),
     provider: AIProvider = Depends(get_ai_provider),
-    _: Client = Depends(require_client_access),
+    _: Client = Depends(require_client_write),
 ) -> CampaignGapResponse:
     try:
         return CampaignGapService(db, provider).analyse(client_id, payload.campaign_id)
@@ -72,7 +75,7 @@ def analyse_matching_campaign_gap(
     payload: CampaignGapAutoRequest,
     db: Session = Depends(get_db),
     provider: AIProvider = Depends(get_ai_provider),
-    _: Client = Depends(require_client_access),
+    _: Client = Depends(require_client_write),
 ) -> CampaignGapResponse:
     try:
         return CampaignGapService(db, provider).analyse_matching(

@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { api, isAbortError } from "../api/client";
+import { useOptionalAuth } from "../auth/AuthContext";
 import type { AppView, CampaignCalendarItem, Client } from "../types";
 import { CAMPAIGN_CALENDAR_UPDATED_EVENT, clientActivityColorStyle } from "../utils/campaignColors";
 
 interface Props {
   onNavigate: (view: AppView) => void;
+  onClientDeleted?: (clientId: number) => void;
 }
 
 interface CalendarMonth {
@@ -81,7 +83,12 @@ function statusTone(status: CampaignCalendarItem["status"]): string {
   return "is-draft";
 }
 
-export function CampaignCalendar({ onNavigate }: Props) {
+export function CampaignCalendar({ onNavigate, onClientDeleted }: Props) {
+  const auth = useOptionalAuth();
+  const canManageClients = !auth?.currentUser || auth.currentUser.role === "admin";
+  const canEditSchedule = !auth?.currentUser
+    || auth.currentUser.role === "admin"
+    || auth.currentUser.role === "strategist";
   const [displayedMonth, setDisplayedMonth] = useState<CalendarMonth>(currentMonth);
   const [items, setItems] = useState<CampaignCalendarItem[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
@@ -243,6 +250,7 @@ export function CampaignCalendar({ onNavigate }: Props) {
       setClients((current) => current.filter((candidate) => candidate.id !== client.id));
       setItems((current) => current.filter((item) => item.client_id !== client.id));
       if (clientFilter === String(client.id)) setClientFilter("all");
+      onClientDeleted?.(client.id);
       window.dispatchEvent(new Event(CAMPAIGN_CALENDAR_UPDATED_EVENT));
     } catch (reason) {
       if (!isAbortError(reason)) setClientError("Unable to delete this customer and its stored data.");
@@ -321,16 +329,17 @@ export function CampaignCalendar({ onNavigate }: Props) {
                     .filter((client) => clientFilter === "all" || client.id === Number(clientFilter))
                     .map((client) => {
                       const clientItems = filteredItems.filter((item) => item.client_id === client.id);
+                      const campaignCount = new Set(clientItems.map((item) => item.campaign_id)).size;
                       const clientChannels = Array.from(new Set(clientItems.map((item) => item.channel))).join(", ") || "—";
                       const activityDates = clientItems.map((item) => item.publish_date).sort();
                       const lastActivity = activityDates[activityDates.length - 1];
                       return (
                         <tr key={client.id}>
                           <td><strong>{client.name}</strong><small>{client.industry || "SME customer"}</small></td>
-                          <td>{clientItems.length}</td>
+                          <td>{campaignCount}</td>
                           <td>{clientChannels}</td>
                           <td>{lastActivity ? `Last: ${publishDateLabel(lastActivity)}` : "No scheduled activity"}</td>
-                          <td className="text-right"><button type="button" className="danger-button" disabled={deletingClientId === client.id} onClick={() => void deleteClient(client)}>{deletingClientId === client.id ? "Deleting…" : "Delete customer"}</button></td>
+                          <td className="text-right">{canManageClients && <button type="button" className="danger-button" disabled={deletingClientId === client.id} onClick={() => void deleteClient(client)}>{deletingClientId === client.id ? "Deleting…" : "Delete customer"}</button>}</td>
                         </tr>
                       );
                     })}
@@ -438,7 +447,7 @@ export function CampaignCalendar({ onNavigate }: Props) {
                     </div>
                     <label className={`campaign-status ${statusTone(item.status)}`}>
                       <span className="sr-only">Publishing status for {item.content}</span>
-                      <select aria-label={`Publishing status for ${item.content}`} value={item.status} disabled={updatingItemId === item.id} onChange={(event) => void updateItemStatus(item, event.target.value as CampaignCalendarItem["status"])} className="bg-transparent font-semibold outline-none">
+                      <select aria-label={`Publishing status for ${item.content}`} value={item.status} disabled={!canEditSchedule || updatingItemId === item.id} onChange={(event) => void updateItemStatus(item, event.target.value as CampaignCalendarItem["status"])} className="bg-transparent font-semibold outline-none">
                         {Object.entries(STATUS_LABELS).map(([value, optionLabel]) => <option key={value} value={value}>{optionLabel}</option>)}
                       </select>
                     </label>

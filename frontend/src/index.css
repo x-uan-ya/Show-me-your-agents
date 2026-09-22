@@ -1758,6 +1758,10 @@
 .auth-form input { width: 100%; border: 1px solid #263950; border-radius: .65rem; padding: .72rem .8rem; background: #040b15; color: #f8fafc; font-size: .78rem; outline: none; transition: .2s; }
 .auth-form input::placeholder { color: #485c73; }
 .auth-form input:focus { border-color: #38bdf8; box-shadow: 0 0 0 3px rgba(56, 189, 248, .11); }
+.auth-form input[readonly] { color: #91a4bb; background: #091321; cursor: default; }
+.auth-inline-actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; justify-content: space-between; gap: .7rem; margin-top: -.2rem; }
+.auth-inline-actions button { color: #7dd3fc; font-size: .7rem; font-weight: 750; }
+.auth-inline-actions button:hover { color: #cffafe; }
 .auth-error, .auth-success { grid-column: 1 / -1; border-radius: .65rem; padding: .7rem .8rem; font-size: .7rem; line-height: 1.45; }
 .auth-error { border: 1px solid rgba(248, 113, 113, .32); background: rgba(127, 29, 29, .22); color: #fecaca; }
 .auth-success { border: 1px solid rgba(52, 211, 153, .3); background: rgba(6, 78, 59, .22); color: #a7f3d0; }
@@ -1808,6 +1812,16 @@
 }
 .sidebar-user-logout svg { width: .9rem; height: .9rem; }
 .sidebar-user-logout:hover { color: #d9f7ff; }
+.sidebar-user select {
+  grid-column: 1 / -1;
+  width: 100%;
+  border: 1px solid #26384f;
+  border-radius: .5rem;
+  padding: .45rem .55rem;
+  background: #07111f;
+  color: #cbd5e1;
+  font-size: .72rem;
+}
 .mobile-logout { color: #cbd5e1; font-size: .78rem; }
 .mobile-logout:hover { color: #7dd3fc; }
 

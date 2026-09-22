@@ -6,7 +6,7 @@ multiple clients; all client-owned records are scoped by ``client_id``.
 
 from datetime import datetime
 
-from sqlalchemy import DateTime, Integer, String, Text, func
+from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -16,6 +16,11 @@ class Client(Base):
     __tablename__ = "clients"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    # Nullable only for backwards compatibility while old local databases are
+    # upgraded in place. All application-created clients receive a workspace.
+    workspace_id: Mapped[int | None] = mapped_column(
+        ForeignKey("workspaces.id", ondelete="RESTRICT"), nullable=True, index=True
+    )
     name: Mapped[str] = mapped_column(String(256), nullable=False)
     industry: Mapped[str | None] = mapped_column(String(128), nullable=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -47,3 +52,4 @@ class Client(Base):
     memberships: Mapped[list["ClientMembership"]] = relationship(  # noqa: F821
         back_populates="client", cascade="all, delete-orphan"
     )
+    workspace: Mapped["Workspace | None"] = relationship(back_populates="clients")  # noqa: F821

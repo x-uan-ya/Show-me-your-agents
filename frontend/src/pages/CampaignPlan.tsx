@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { api, isAbortError } from "../api/client";
+import { useOptionalAuth } from "../auth/AuthContext";
 import { CAMPAIGN_CALENDAR_UPDATED_EVENT } from "../utils/campaignColors";
 import { CustomerMessageGapCard } from "../components/CustomerMessageGapCard";
 import { EvidenceDrawer } from "../components/EvidenceDrawer";
@@ -220,6 +221,10 @@ function pickInsight(insights: Insight[], categories: string[]): Insight | null 
 }
 
 export function CampaignPlan({ clientId, clientName = "", brief, insights, onNavigate }: Props) {
+  const auth = useOptionalAuth();
+  const canReviewCampaign = !auth?.currentUser
+    || auth.currentUser.role === "admin"
+    || auth.currentUser.role === "reviewer";
   const [generationStatus, setGenerationStatus] = useState<GenerationStatus>("idle");
   const [generationError, setGenerationError] = useState<string | null>(null);
   const [startDate, setStartDate] = useState(todayInputValue);
@@ -747,7 +752,7 @@ export function CampaignPlan({ clientId, clientName = "", brief, insights, onNav
                       : "Save the campaign before approval can be persisted."}
                   </p>
                 </div>
-                <div className="flex flex-wrap gap-3">
+                {canReviewCampaign ? <div className="flex flex-wrap gap-3">
                   <button
                     type="button"
                     onClick={() => void updateApproval("rejected")}
@@ -762,7 +767,7 @@ export function CampaignPlan({ clientId, clientName = "", brief, insights, onNav
                   >
                     Approve campaign
                   </button>
-                </div>
+                </div> : <p className="text-sm text-slate-400">A reviewer or workspace admin must approve this campaign.</p>}
               </div>
               {approvalError && (
                 <p role="alert" className="mt-4 text-sm text-amber-300">{approvalError}</p>

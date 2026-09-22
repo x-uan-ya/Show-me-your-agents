@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from "react";
 
-import { api, isAbortError } from "../api/client";
+import { ACTIVE_WORKSPACE_STORAGE_KEY, api, isAbortError } from "../api/client";
 import type { CurrentUser } from "../types";
 
 interface AuthState {
@@ -17,11 +17,25 @@ interface AuthState {
   isLoading: boolean;
   register: (displayName: string, email: string, password: string) => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
+  loginWithEmailCode: (email: string, code: string) => Promise<void>;
   logout: () => Promise<void>;
+  switchWorkspace: (workspaceId: number) => Promise<void>;
   refreshCurrentUser: (signal?: AbortSignal) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthState | null>(null);
+const AUTH_SCOPE_STORAGE_KEY = "customer-intelligence:auth:scope";
+
+function legacyWorkspaceCacheKey(key: string): boolean {
+  return /^(customer-intelligence:(selected-client(?:-name)?|brief:|analysis:))/.test(key);
+}
+
+function clearLegacyWorkspaceCache() {
+  const keys = Array.from({ length: window.localStorage.length }, (_, index) =>
+    window.localStorage.key(index),
+  ).filter((key): key is string => Boolean(key && legacyWorkspaceCacheKey(key)));
+  keys.forEach((key) => window.localStorage.removeItem(key));
+}
 
 function clearWorkspaceCache() {
   const keys = Array.from({ length: window.localStorage.length }, (_, index) =>
@@ -34,9 +48,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  const applyAuthenticatedUser = useCallback((user: CurrentUser) => {
+    clearLegacyWorkspaceCache();
+    window.localStorage.setItem(ACTIVE_WORKSPACE_STORAGE_KEY, String(user.workspace_id));
+    window.localStorage.setItem(
+      AUTH_SCOPE_STORAGE_KEY,
+      `${user.id}:${user.workspace_id}`,
+    );
+    setCurrentUser(user);
+  }, []);
+
   const refreshCurrentUser = useCallback(async (signal?: AbortSignal) => {
     try {
-      setCurrentUser(await api.currentUser(signal));
+      applyAuthenticatedUser(await api.currentUser(signal));
     } catch (error) {
       if (isAbortError(error)) return;
       setCurrentUser(null);
@@ -44,7 +68,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally {
       if (!signal?.aborted) setIsLoading(false);
     }
-  }, []);
+  }, [applyAuthenticatedUser]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -54,8 +78,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(async (email: string, password: string) => {
     const user = await api.login(email, password);
-    setCurrentUser(user);
-  }, []);
+    applyAuthenticatedUser(user);
+  }, [applyAuthenticatedUser]);
+
+  const loginWithEmailCode = useCallback(async (email: string, code: string) => {
+    const user = await api.loginWithEmailCode(email, code);
+    applyAuthenticatedUser(user);
+  }, [applyAuthenticatedUser]);
+
+  const switchWorkspace = useCallback(async (workspaceId: number) => {
+    if (currentUser?.workspace_id === workspaceId) return;
+    const user = await api.switchWorkspace(workspaceId);
+    applyAuthenticatedUser(user);
+    window.location.hash = "#/dashboard";
+  }, [applyAuthenticatedUser, currentUser?.workspace_id]);
 
   const register = useCallback(async (
     displayName: string,
@@ -81,9 +117,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isLoading,
     register,
     login,
+    loginWithEmailCode,
     logout,
+    switchWorkspace,
     refreshCurrentUser,
-  }), [currentUser, isLoading, login, logout, refreshCurrentUser, register]);
+  }), [currentUser, isLoading, login, loginWithEmailCode, logout, refreshCurrentUser, register, switchWorkspace]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

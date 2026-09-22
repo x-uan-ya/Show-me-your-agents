@@ -1,9 +1,12 @@
 import { useEffect, useId, useRef, useState } from "react";
 
 import { api, isAbortError } from "../api/client";
+import { useOptionalAuth } from "../auth/AuthContext";
 import type { Client } from "../types";
 
-const CLIENT_NAME_STORAGE_KEY = "customer-intelligence:selected-client-name";
+function sortClients(clients: Client[]): Client[] {
+  return [...clients].sort((left, right) => left.name.localeCompare(right.name));
+}
 
 interface Props {
   selectedId: number | null;
@@ -15,6 +18,10 @@ interface Props {
 // Loads the client list and lets the user pick one, or create a quick client
 // for development (useful with synthetic data for a single client).
 export function ClientSelector({ selectedId, onSelect, onNameChange, disabled = false }: Props) {
+  const auth = useOptionalAuth();
+  const canCreateClient = !auth?.currentUser
+    || auth.currentUser.role === "admin"
+    || auth.currentUser.role === "strategist";
   const [clients, setClients] = useState<Client[]>([]);
   const [newName, setNewName] = useState("");
   const [newIndustry, setNewIndustry] = useState("");
@@ -28,7 +35,7 @@ export function ClientSelector({ selectedId, onSelect, onNameChange, disabled = 
     const controller = new AbortController();
     setError(null);
     api.listClients(controller.signal).then((items) => {
-      setClients(items);
+      setClients(sortClients(items));
       onNameChange?.(items.find((client) => client.id === selectedId)?.name ?? "");
       if (selectedId !== null && !items.some((client) => client.id === selectedId)) {
         onSelect(null);
@@ -57,9 +64,8 @@ export function ClientSelector({ selectedId, onSelect, onNameChange, disabled = 
       }, controller.signal);
       setNewName("");
       setNewIndustry("");
-      setClients((prev) => [...prev, created]);
+      setClients((prev) => sortClients([...prev, created]));
       onSelect(created.id);
-      window.localStorage.setItem(CLIENT_NAME_STORAGE_KEY, created.name);
       onNameChange?.(created.name);
     } catch (e) {
       if (!isAbortError(e)) setError((e as Error).message);
@@ -86,7 +92,6 @@ export function ClientSelector({ selectedId, onSelect, onNameChange, disabled = 
             const nextId = e.target.value === "" ? null : Number(e.target.value);
             onSelect(nextId);
             const nextName = clients.find((client) => client.id === nextId)?.name ?? "";
-            window.localStorage.setItem(CLIENT_NAME_STORAGE_KEY, nextName);
             onNameChange?.(nextName);
           }}
         >
@@ -99,7 +104,7 @@ export function ClientSelector({ selectedId, onSelect, onNameChange, disabled = 
         </select>
       </div>
 
-      <form
+      {canCreateClient && <form
         className="quick-add-form grid gap-2 sm:grid-cols-[8rem_minmax(0,1fr)_minmax(0,0.75fr)_auto] sm:items-center"
         onSubmit={(event) => {
           event.preventDefault();
@@ -134,7 +139,7 @@ export function ClientSelector({ selectedId, onSelect, onNameChange, disabled = 
         >
           {creating ? "Adding..." : "Add client"}
         </button>
-      </form>
+      </form>}
 
       {error && (
         <p role="alert" className="text-sm text-amber-300">

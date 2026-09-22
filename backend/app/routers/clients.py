@@ -10,7 +10,6 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.client import Client
-from app.models.user import User
 from app.repositories.client_repository import ClientRepository
 from app.repositories.user_repository import UserRepository
 from app.schemas.client import ClientCreate, ClientRead
@@ -22,7 +21,12 @@ from app.services.insight_engine.evidence_quality import (
     EvidenceQualityService,
     InsightNotFoundError,
 )
-from app.services.auth.dependencies import get_current_user, require_client_access
+from app.services.auth.dependencies import (
+    AccessContext,
+    get_current_access,
+    require_client_access,
+    require_client_admin,
+)
 
 router = APIRouter(prefix="/clients", tags=["clients"])
 
@@ -46,20 +50,29 @@ def create_client(
     payload: ClientCreate,
     repo: ClientRepository = Depends(_repo),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    access: AccessContext = Depends(get_current_access),
 ) -> ClientRead:
-    client = repo.create(payload)
-    if current_user.role != "admin":
-        UserRepository(db).add_membership(current_user.id, client.id)
+    if access.workspace_role not in {"admin", "strategist"}:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Client creation is not permitted")
+    client = repo.create(payload, access.workspace_id)
+    if access.workspace_role != "admin":
+        UserRepository(db).add_membership(access.user.id, client.id, "strategist")
     return ClientRead.model_validate(client)
 
 
 @router.get("", response_model=list[ClientRead])
 def list_clients(
     repo: ClientRepository = Depends(_repo),
-    current_user: User = Depends(get_current_user),
+    access: AccessContext = Depends(get_current_access),
 ) -> list[ClientRead]:
-    return [ClientRead.model_validate(c) for c in repo.list_for_user(current_user)]
+    return [
+        ClientRead.model_validate(client)
+        for client in repo.list_for_access(
+            workspace_id=access.workspace_id,
+            user_id=access.user.id,
+            workspace_role=access.workspace_role,
+        )
+    ]
 
 
 @router.get("/{client_id}", response_model=ClientRead)
@@ -74,7 +87,7 @@ def get_client(
 def delete_client(
     client_id: int,
     repo: ClientRepository = Depends(_repo),
-    _: Client = Depends(require_client_access),
+    _: Client = Depends(require_client_admin),
 ) -> None:
     """Delete a client and the client-owned datasets, insights and campaigns."""
     if not repo.delete(client_id):

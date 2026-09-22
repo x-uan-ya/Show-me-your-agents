@@ -13,7 +13,7 @@ from app.models.client import Client
 from app.models.customer_insight import CustomerInsight
 from app.models.customer_signal import CustomerSignal
 from app.models.dataset import Dataset
-from app.models.user import ClientMembership, User
+from app.models.user import ClientMembership
 from app.schemas.client import ClientCreate
 
 
@@ -21,8 +21,9 @@ class ClientRepository:
     def __init__(self, db: Session) -> None:
         self._db = db
 
-    def create(self, payload: ClientCreate) -> Client:
+    def create(self, payload: ClientCreate, workspace_id: int) -> Client:
         client = Client(
+            workspace_id=workspace_id,
             name=payload.name,
             industry=payload.industry,
             description=payload.description,
@@ -46,13 +47,28 @@ class ClientRepository:
     def list(self) -> list[Client]:
         return list(self._db.scalars(select(Client).order_by(Client.id)).all())
 
-    def list_for_user(self, user: User) -> list[Client]:
-        if user.role == "admin":
-            return self.list()
+    def list_for_access(
+        self,
+        *,
+        workspace_id: int,
+        user_id: int,
+        workspace_role: str,
+    ) -> list[Client]:
+        if workspace_role == "admin":
+            stmt = (
+                select(Client)
+                .where(Client.workspace_id == workspace_id)
+                .order_by(Client.id)
+            )
+            return list(self._db.scalars(stmt).all())
         stmt = (
             select(Client)
             .join(ClientMembership, ClientMembership.client_id == Client.id)
-            .where(ClientMembership.user_id == user.id)
+            .where(
+                Client.workspace_id == workspace_id,
+                ClientMembership.user_id == user_id,
+                ClientMembership.is_active.is_(True),
+            )
             .order_by(Client.id)
         )
         return list(self._db.scalars(stmt).all())

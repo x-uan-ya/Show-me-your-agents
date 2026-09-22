@@ -11,6 +11,7 @@ from app.routers.evaluation import router as evaluation_router
 from app.routers.handoff import router as handoff_router
 from app.routers.health import router as health_router
 from app.routers.insights import router as insights_router
+from app.routers.workspaces import router as workspaces_router
 
 __all__ = [
     "analysis_router",
@@ -25,4 +26,5 @@ __all__ = [
     "handoff_router",
     "health_router",
     "insights_router",
+    "workspaces_router",
 ]

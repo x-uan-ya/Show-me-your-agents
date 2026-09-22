@@ -14,7 +14,7 @@ campaign records. Publishing integrations remain future work.
 
 | Area | Current state | Notes |
 | --- | --- | --- |
-| Login and client access | Working locally | HttpOnly signed session cookie, admin/strategist/reviewer roles and direct client memberships. |
+| Login and tenant access | Working locally | Password or email-OTP sign-in, OTP password reset, HttpOnly sessions, isolated agency workspaces, workspace membership, client roles and admin access management. |
 | Client onboarding | Working | Select or quick-create a client through the existing API. |
 | Marketing brief | Working | Objective, audience, current message and channels are stored per client in the backend; browser storage is retained only as a migration/offline fallback. |
 | Customer feedback | Working | Upload CSV, inspect columns and rows, edit the field mapping, then confirm import. |
@@ -23,7 +23,7 @@ campaign records. Publishing integrations remain future work.
 | Trial vs retention | Working, secondary | Compares trial, retention and non-repeat drivers for the selected client. |
 | Campaign recommendation | Working | Produces an evidence-led draft, then saves a client-scoped Campaign linked to its brief, analysis run and primary insight. |
 | Content calendar / schedule | Persisted foundation | Seven-day content items are stored as queryable campaign child records; publishing is not implemented. |
-| Human approval | Persisted foundation | Each campaign has a basic approval record and approve/revise status is saved; role-specific reviewer workflow is not implemented. |
+| Human approval | Persisted foundation | Approval state is saved; only workspace admins or assigned reviewers may approve or request revision. |
 | Customer-message gap | Implemented | Dataset 3 is validated, compared with the latest evidence-backed client insights through the configured AI provider, and exposed to Campaign Plan. |
 | Campaign feedback loop | Not implemented | No results ingestion, learning loop or trend detection yet. |
 
@@ -207,8 +207,8 @@ and using Trial vs Retention works without a separate browser CORS setup.
 ### Create local demo users
 
 Authentication uses persistent database users. New users can register with a
-name, email and password from the public product homepage; self-registered users
-receive the `strategist` role and begin with an empty client workspace. After
+name, email and password from the public product homepage; each self-registered
+user becomes the admin of a new, isolated agency workspace. After
 setup, create the local admin, strategist and reviewer demo accounts from the
 `backend` directory:
 
@@ -218,10 +218,51 @@ setup, create the local admin, strategist and reviewer demo accounts from the
 
 The command securely prompts for a demo password (or reads
 `DEMO_USER_PASSWORD`) and prints the three non-production login email addresses.
-It never writes the password into frontend source. Admin can access every client;
-strategist and reviewer are assigned to the first existing client when present.
+It never writes the password into frontend source. Admin can access every client
+inside the active workspace only; strategist and reviewer are assigned to the
+first existing client when present. Workspace admins can then use **Team access**
+to add another registered email, assign a per-client role, or revoke access.
 Set a long random `AUTH_SECRET` and enable `AUTH_COOKIE_SECURE` for HTTPS outside
 local development, as shown in `backend/.env.example`.
+
+### Email sign-in and password reset
+
+The Sign in dialog supports both password login and a six-digit email code.
+**Forgot password?** uses a separate email OTP before accepting a new password.
+Codes expire after 10 minutes, are single-use, have a five-attempt limit and a
+60-second resend cooldown. A successful password reset invalidates older login
+sessions.
+
+Local development defaults to `EMAIL_DELIVERY=console`, which writes the OTP to
+the backend terminal so the flow can be tested without external credentials.
+For real inbox delivery, configure SMTP in `backend/.env`:
+
+```dotenv
+EMAIL_DELIVERY=smtp
+SMTP_HOST=smtp.example.com
+SMTP_PORT=587
+SMTP_USERNAME=your-smtp-username
+SMTP_PASSWORD=your-smtp-password-or-app-password
+SMTP_FROM_EMAIL=no-reply@your-domain.com
+SMTP_FROM_NAME=Campaign Intelligence
+SMTP_USE_TLS=true
+SMTP_USE_SSL=false
+```
+
+SMTP credentials remain backend-only and must not be committed. The request
+API returns the same message whether or not an account exists for an email, and
+the OTP itself is stored only as an HMAC hash.
+
+After saving `backend/.env`, send a harmless test message before opening the
+website:
+
+```bash
+npm run test:email -- your-inbox@example.com
+```
+
+The command exits with an error if the SMTP connection, TLS handshake or login
+fails. A successful result confirms only email delivery; OTP codes are still
+generated and validated by the authentication endpoints.
 
 You can also run either side alone: `npm run dev:backend` or
 `npm run dev:frontend`.
@@ -411,9 +452,10 @@ config (`frontend/src/data/sources.ts`) and a reusable
 ### P1 — intelligence and coordination
 
 - [x] Customer-message gap analysis
-- [x] Minimal authentication, roles and direct client access memberships
-- [ ] Full multi-user agency workflow and membership administration UI
-- [ ] Stronger client workspace separation in the UI
+- [x] Workspace-scoped authentication and per-client role permissions
+- [x] Multi-user membership and client-access administration UI
+- [x] User/workspace-scoped browser cache separation
+- [ ] Email invitation delivery and production identity federation
 - [ ] Campaign coordination and durable approval history
 
 ### P2 — closed learning loop
@@ -450,7 +492,20 @@ Do not treat P1 or P2 as a substitute for stabilising the P0 workflow.
 ## Implemented safeguards
 
 Hackathon-scoped hardening now includes persistent users, scrypt password hashes,
-signed HttpOnly cookie sessions, roles, and backend-enforced client memberships.
+signed HttpOnly cookie sessions, agency workspaces, backend-enforced client
+memberships, and separate admin/strategist/reviewer/viewer permissions.
+
+**Workspace isolation (backend-enforced).** Every client belongs to one agency
+workspace. Even an admin is limited to the active workspace and cannot list or
+open another agency's customers. Existing SQLite records are assigned to a
+legacy workspace by an idempotent, additive startup migration; no tables or
+records are deleted. The browser sends the active workspace with API requests,
+and local brief/analysis caches are namespaced by workspace and user.
+
+**Operation permissions.** Strategists may create clients and modify customer
+data or campaigns but cannot delete clients. Reviewers may read assigned client
+data and approve or return campaigns but cannot mutate source data. Viewers are
+read-only. Only workspace admins manage members, assignments, and deletion.
 
 **Client isolation (backend-enforced).** Every route that touches a
 client-owned resource (datasets, customer signals, insights, insight evidence,

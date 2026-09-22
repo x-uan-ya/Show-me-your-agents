@@ -5,7 +5,13 @@ export interface HealthResponse {
   status: string;
 }
 
-export type UserRole = "admin" | "strategist" | "reviewer";
+export type UserRole = "admin" | "strategist" | "reviewer" | "viewer";
+
+export interface WorkspaceSummary {
+  id: number;
+  name: string;
+  role: UserRole;
+}
 
 export interface CurrentUser {
   id: number;
@@ -14,6 +20,31 @@ export interface CurrentUser {
   role: UserRole;
   is_active: boolean;
   created_at: string;
+  workspace_id: number;
+  workspace_name: string;
+  workspaces: WorkspaceSummary[];
+}
+
+export interface AuthMessage {
+  message: string;
+}
+
+export type ClientRole = "strategist" | "reviewer" | "viewer";
+
+export interface WorkspaceMember {
+  user_id: number;
+  email: string;
+  display_name: string;
+  role: UserRole;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface ClientMember {
+  user_id: number;
+  client_id: number;
+  role: ClientRole;
+  is_active: boolean;
 }
 
 export interface InsightTypeInfo {
@@ -31,7 +62,8 @@ export type AppView =
   | "insights"
   | "campaign-plan"
   | "trial-retention"
-  | "campaign-calendar";
+  | "campaign-calendar"
+  | "team-access";
 
 export interface MarketingBrief {
   objective: string;
@@ -188,6 +220,7 @@ export const EMPTY_MARKETING_BRIEF: MarketingBrief = {
 
 export interface Client {
   id: number;
+  workspace_id?: number | null;
   name: string;
   industry: string | null;
   description: string | null;

@@ -13,6 +13,7 @@ from pydantic import AliasChoices, Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 AIProvider = Literal["mock", "hackathon"]
+EmailDelivery = Literal["console", "smtp"]
 
 
 class Settings(BaseSettings):
@@ -37,6 +38,22 @@ class Settings(BaseSettings):
     auth_cookie_name: str = Field(default="smy_agents_session")
     auth_session_seconds: int = Field(default=8 * 60 * 60, ge=300, le=30 * 24 * 60 * 60)
     auth_cookie_secure: bool = Field(default=False)
+
+    # Email OTP delivery. Console delivery is restricted to local/test use;
+    # production deployments should use SMTP and keep credentials in .env.
+    email_delivery: EmailDelivery = Field(default="console")
+    smtp_host: str | None = Field(default=None)
+    smtp_port: int = Field(default=587, ge=1, le=65535)
+    smtp_username: str | None = Field(default=None)
+    smtp_password: SecretStr | None = Field(default=None)
+    smtp_from_email: str = Field(default="no-reply@localhost")
+    smtp_from_name: str = Field(default="Campaign Intelligence")
+    smtp_use_tls: bool = Field(default=True)
+    smtp_use_ssl: bool = Field(default=False)
+    smtp_timeout_seconds: float = Field(default=10.0, gt=0, le=60)
+    email_otp_expiry_minutes: int = Field(default=10, ge=2, le=30)
+    email_otp_resend_seconds: int = Field(default=60, ge=15, le=600)
+    email_otp_max_attempts: int = Field(default=5, ge=3, le=10)
 
     # CORS: comma-separated list of allowed origins for the frontend.
     cors_origins: str = Field(default="http://localhost:5173,http://127.0.0.1:5173")

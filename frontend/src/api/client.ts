@@ -3,6 +3,7 @@
 
 import type {
   AnalyseResponse,
+  AuthMessage,
   BehaviourSummary,
   CampaignCalendarItem,
   CampaignGapResponse,
@@ -10,6 +11,8 @@ import type {
   CampaignGenerateInput,
   CampaignGenerationResponse,
   Client,
+  ClientMember,
+  ClientRole,
   ColumnMapping,
   CurrentUser,
   CustomerSignal,
@@ -22,6 +25,8 @@ import type {
   MarketingBriefRecord,
   PersistedCampaign,
   UploadResponse,
+  UserRole,
+  WorkspaceMember,
 } from "../types";
 
 // Default to a relative "/api" so the app works when the backend serves the
@@ -34,6 +39,7 @@ function apiBaseUrl(value: string | undefined): string {
 }
 
 const API_BASE_URL = apiBaseUrl(import.meta.env.VITE_API_BASE_URL);
+export const ACTIVE_WORKSPACE_STORAGE_KEY = "customer-intelligence:auth:workspace-id";
 
 const DEFAULT_TIMEOUT_MS = 60_000;
 
@@ -86,8 +92,12 @@ async function requestJson<T>(
   }, timeoutMs);
 
   try {
+    const headers = new Headers(init.headers);
+    const workspaceId = window.localStorage.getItem(ACTIVE_WORKSPACE_STORAGE_KEY);
+    if (workspaceId) headers.set("X-Workspace-ID", workspaceId);
     const response = await fetch(`${API_BASE_URL}${path}`, {
       ...init,
+      headers,
       credentials: "include",
       signal: controller.signal,
     });
@@ -174,16 +184,77 @@ export const api = {
   ),
   login: (email: string, password: string, signal?: AbortSignal) =>
     postJson<CurrentUser>("/auth/login", { email, password }, signal),
+  requestEmailLoginCode: (email: string, signal?: AbortSignal) =>
+    postJson<AuthMessage>("/auth/email-login/request", { email }, signal),
+  loginWithEmailCode: (email: string, code: string, signal?: AbortSignal) =>
+    postJson<CurrentUser>("/auth/email-login/verify", { email, code }, signal),
+  requestPasswordResetCode: (email: string, signal?: AbortSignal) =>
+    postJson<AuthMessage>("/auth/password-reset/request", { email }, signal),
+  confirmPasswordReset: (
+    email: string,
+    code: string,
+    newPassword: string,
+    signal?: AbortSignal,
+  ) => postJson<AuthMessage>(
+    "/auth/password-reset/confirm",
+    { email, code, new_password: newPassword },
+    signal,
+  ),
   currentUser: (signal?: AbortSignal) =>
     getJson<CurrentUser>("/auth/me", signal),
+  switchWorkspace: (workspaceId: number, signal?: AbortSignal) =>
+    postJson<CurrentUser>("/auth/workspace", { workspace_id: workspaceId }, signal),
   logout: (signal?: AbortSignal) =>
     requestJson<void>("/auth/logout", { method: "POST" }, signal),
+  listWorkspaceMembers: (signal?: AbortSignal) =>
+    getJson<WorkspaceMember[]>("/workspaces/current/members", signal),
+  addWorkspaceMember: (
+    email: string,
+    role: UserRole,
+    signal?: AbortSignal,
+  ) => postJson<WorkspaceMember>(
+    "/workspaces/current/members",
+    { email, role },
+    signal,
+  ),
+  removeWorkspaceMember: (userId: number, signal?: AbortSignal) =>
+    requestJson<void>(
+      `/workspaces/current/members/${userId}`,
+      { method: "DELETE" },
+      signal,
+    ),
+  listClientMembers: (clientId: number, signal?: AbortSignal) =>
+    getJson<ClientMember[]>(
+      `/workspaces/current/clients/${clientId}/members`,
+      signal,
+    ),
+  assignClientMember: (
+    clientId: number,
+    userId: number,
+    role: ClientRole,
+    signal?: AbortSignal,
+  ) => putJson<ClientMember>(
+    `/workspaces/current/clients/${clientId}/members/${userId}`,
+    { role },
+    signal,
+  ),
+  revokeClientMember: (
+    clientId: number,
+    userId: number,
+    signal?: AbortSignal,
+  ) => requestJson<void>(
+    `/workspaces/current/clients/${clientId}/members/${userId}`,
+    { method: "DELETE" },
+    signal,
+  ),
 
   health: (signal?: AbortSignal) => getJson<HealthResponse>("/health", signal),
   taxonomy: (signal?: AbortSignal) =>
     getJson<InsightTypeInfo[]>("/insights/taxonomy", signal),
 
   listClients: (signal?: AbortSignal) => getJson<Client[]>("/clients", signal),
+  getClient: (clientId: number, signal?: AbortSignal) =>
+    getJson<Client>(`/clients/${clientId}`, signal),
   createClient: (
     payload: { name: string; industry?: string },
     signal?: AbortSignal,

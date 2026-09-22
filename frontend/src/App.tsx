@@ -8,6 +8,7 @@ import { CampaignCalendar } from "./pages/CampaignCalendar";
 import { ImportData } from "./pages/ImportData";
 import { Insights } from "./pages/Insights";
 import { TrialVsRetention } from "./pages/TrialVsRetention";
+import { TeamAccess } from "./pages/TeamAccess";
 import {
   EMPTY_MARKETING_BRIEF,
   type AppView,
@@ -18,10 +19,14 @@ import {
 import { hashForView, viewFromHash } from "./utils/navigation";
 import { CAMPAIGN_CALENDAR_UPDATED_EVENT, clientActivityColorStyle } from "./utils/campaignColors";
 
-const CLIENT_STORAGE_KEY = "customer-intelligence:selected-client";
-const CLIENT_NAME_STORAGE_KEY = "customer-intelligence:selected-client-name";
-const BRIEF_STORAGE_PREFIX = "customer-intelligence:brief:";
-const ANALYSIS_STORAGE_PREFIX = "customer-intelligence:analysis:";
+const CLIENT_STORAGE_SUFFIX = "selected-client";
+const CLIENT_NAME_STORAGE_SUFFIX = "selected-client-name";
+const BRIEF_STORAGE_PREFIX = "brief:";
+const ANALYSIS_STORAGE_PREFIX = "analysis:";
+
+function workspaceStorageKey(scope: string, suffix: string): string {
+  return `customer-intelligence:${scope}:${suffix}`;
+}
 
 const TABS: { id: AppView; label: string; shortLabel: string }[] = [
   { id: "dashboard", label: "Overview", shortLabel: "Overview" },
@@ -34,6 +39,7 @@ const TABS: { id: AppView; label: string; shortLabel: string }[] = [
     shortLabel: "Trial vs retention",
   },
   { id: "campaign-calendar", label: "Campaign calendar", shortLabel: "Calendar" },
+  { id: "team-access", label: "Team access", shortLabel: "Team" },
 ];
 
 const NAV_ICON_PATHS: Record<AppView, string> = {
@@ -43,6 +49,7 @@ const NAV_ICON_PATHS: Record<AppView, string> = {
   "campaign-plan": "m4 12 16-8-6 16-3-6-7-2Zm7 2 9-10",
   "trial-retention": "M7 7h10m0 0-3-3m3 3-3 3M17 17H7m0 0 3 3m-3-3 3-3",
   "campaign-calendar": "M5 4h14v16H5zM8 2v4m8-4v4M5 9h14M8 13h3m2 0h3M8 17h3",
+  "team-access": "M8 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm8-1a2.5 2.5 0 1 0 0-5M3 20v-2a5 5 0 0 1 10 0v2m1-7a4 4 0 0 1 6 3.5V20",
 };
 
 function NavIcon({ view }: { view: AppView }) {
@@ -139,17 +146,21 @@ function WorkspaceCalendar({ refreshKey }: { refreshKey: AppView }) {
   );
 }
 
-function storedClientId(): number | null {
-  const value = window.localStorage.getItem(CLIENT_STORAGE_KEY);
+function storedClientId(scope: string): number | null {
+  const value = window.localStorage.getItem(
+    workspaceStorageKey(scope, CLIENT_STORAGE_SUFFIX),
+  );
   if (!value) return null;
   const parsed = Number(value);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
 }
 
-function storedBrief(clientId: number | null): MarketingBrief {
+function storedBrief(scope: string, clientId: number | null): MarketingBrief {
   if (clientId === null) return EMPTY_MARKETING_BRIEF;
   try {
-    const raw = window.localStorage.getItem(`${BRIEF_STORAGE_PREFIX}${clientId}`);
+    const raw = window.localStorage.getItem(
+      workspaceStorageKey(scope, `${BRIEF_STORAGE_PREFIX}${clientId}`),
+    );
     if (!raw) return EMPTY_MARKETING_BRIEF;
     const parsed = JSON.parse(raw) as Partial<MarketingBrief>;
     return {
@@ -167,10 +178,12 @@ function storedBrief(clientId: number | null): MarketingBrief {
   }
 }
 
-function storedAnalysis(clientId: number | null): { datasetId: number | null; insights: Insight[] } {
+function storedAnalysis(scope: string, clientId: number | null): { datasetId: number | null; insights: Insight[] } {
   if (clientId === null) return { datasetId: null, insights: [] };
   try {
-    const raw = window.localStorage.getItem(`${ANALYSIS_STORAGE_PREFIX}${clientId}`);
+    const raw = window.localStorage.getItem(
+      workspaceStorageKey(scope, `${ANALYSIS_STORAGE_PREFIX}${clientId}`),
+    );
     if (!raw) return { datasetId: null, insights: [] };
     const parsed = JSON.parse(raw) as { datasetId?: unknown; insights?: unknown };
     return {
@@ -182,35 +195,62 @@ function storedAnalysis(clientId: number | null): { datasetId: number | null; in
   }
 }
 
-function saveAnalysis(clientId: number | null, datasetId: number | null, insights: Insight[]) {
+function saveAnalysis(
+  scope: string,
+  clientId: number | null,
+  datasetId: number | null,
+  insights: Insight[],
+) {
   if (clientId === null) return;
   window.localStorage.setItem(
-    `${ANALYSIS_STORAGE_PREFIX}${clientId}`,
+    workspaceStorageKey(scope, `${ANALYSIS_STORAGE_PREFIX}${clientId}`),
     JSON.stringify({ datasetId, insights }),
   );
 }
 
 export default function App() {
   const auth = useOptionalAuth();
+  const storageScope = auth?.currentUser
+    ? `workspace-${auth.currentUser.workspace_id}:user-${auth.currentUser.id}`
+    : "anonymous";
   const [view, setView] = useState<AppView>(() =>
     viewFromHash(window.location.hash),
   );
-  const [clientId, setClientId] = useState<number | null>(storedClientId);
-  const [datasetId, setDatasetId] = useState<number | null>(() => storedAnalysis(storedClientId()).datasetId);
+  const [clientId, setClientId] = useState<number | null>(() => storedClientId(storageScope));
+  const [clientName, setClientName] = useState(() =>
+    storedClientId(storageScope) === null
+      ? ""
+      : window.localStorage.getItem(
+          workspaceStorageKey(storageScope, CLIENT_NAME_STORAGE_SUFFIX),
+        ) ?? "",
+  );
+  const [datasetId, setDatasetId] = useState<number | null>(() =>
+    storedAnalysis(storageScope, storedClientId(storageScope)).datasetId
+  );
   const [brief, setBrief] = useState<MarketingBrief>(() =>
-    storedBrief(storedClientId()),
+    storedBrief(storageScope, storedClientId(storageScope)),
   );
   const [briefHydratedClientId, setBriefHydratedClientId] = useState<number | null>(null);
-  const clientName = clientId === null ? "" : window.localStorage.getItem(CLIENT_NAME_STORAGE_KEY) ?? "";
-  const [latestInsights, setLatestInsights] = useState<Insight[]>(() => storedAnalysis(storedClientId()).insights);
+  const [latestInsights, setLatestInsights] = useState<Insight[]>(() =>
+    storedAnalysis(storageScope, storedClientId(storageScope)).insights
+  );
   const hasMounted = useRef(false);
   const briefEditVersion = useRef(0);
+  const visibleTabs = TABS.filter((tab) =>
+    tab.id !== "team-access" || auth?.currentUser?.role === "admin"
+  );
 
   useEffect(() => {
     const syncView = () => setView(viewFromHash(window.location.hash));
     window.addEventListener("hashchange", syncView);
     return () => window.removeEventListener("hashchange", syncView);
   }, []);
+
+  useEffect(() => {
+    if (view === "team-access" && auth?.currentUser?.role !== "admin") {
+      window.location.hash = hashForView("dashboard");
+    }
+  }, [auth?.currentUser?.role, view]);
 
   useEffect(() => {
     const label = TABS.find((tab) => tab.id === view)?.label ?? "Overview";
@@ -225,13 +265,37 @@ export default function App() {
   }, [view]);
 
   useEffect(() => {
+    if (clientId === null) {
+      setClientName("");
+      return;
+    }
+
+    const controller = new AbortController();
+    api.getClient(clientId, controller.signal)
+      .then((client) => {
+        if (controller.signal.aborted) return;
+        setClientName(client.name);
+        window.localStorage.setItem(
+          workspaceStorageKey(storageScope, CLIENT_NAME_STORAGE_SUFFIX),
+          client.name,
+        );
+      })
+      .catch((error) => {
+        if (!controller.signal.aborted && !isAbortError(error)) {
+          // Keep the cached label while offline; client-owned API calls still use the ID.
+        }
+      });
+    return () => controller.abort();
+  }, [clientId, storageScope]);
+
+  useEffect(() => {
     setBriefHydratedClientId(null);
     if (clientId === null) {
       setBrief(EMPTY_MARKETING_BRIEF);
       return;
     }
 
-    const fallback = storedBrief(clientId);
+    const fallback = storedBrief(storageScope, clientId);
     setBrief(fallback);
     const loadVersion = briefEditVersion.current;
     const controller = new AbortController();
@@ -247,7 +311,7 @@ export default function App() {
           };
           setBrief(persistedBrief);
           window.localStorage.setItem(
-            `${BRIEF_STORAGE_PREFIX}${clientId}`,
+            workspaceStorageKey(storageScope, `${BRIEF_STORAGE_PREFIX}${clientId}`),
             JSON.stringify(persistedBrief),
           );
         }
@@ -260,7 +324,7 @@ export default function App() {
         }
       });
     return () => controller.abort();
-  }, [clientId]);
+  }, [clientId, storageScope]);
 
   useEffect(() => {
     if (clientId === null || briefHydratedClientId !== clientId) return;
@@ -297,19 +361,44 @@ export default function App() {
 
   const selectClient = (nextClientId: number | null) => {
     if (clientId !== nextClientId) {
-      const restored = storedAnalysis(nextClientId);
+      const restored = storedAnalysis(storageScope, nextClientId);
       briefEditVersion.current += 1;
+      setClientName("");
       setDatasetId(restored.datasetId);
       setLatestInsights(restored.insights);
       setBriefHydratedClientId(null);
-      setBrief(storedBrief(nextClientId));
+      setBrief(storedBrief(storageScope, nextClientId));
     }
     setClientId(nextClientId);
     if (nextClientId === null) {
-      window.localStorage.removeItem(CLIENT_STORAGE_KEY);
+      window.localStorage.removeItem(workspaceStorageKey(storageScope, CLIENT_STORAGE_SUFFIX));
+      window.localStorage.removeItem(workspaceStorageKey(storageScope, CLIENT_NAME_STORAGE_SUFFIX));
     } else {
-      window.localStorage.setItem(CLIENT_STORAGE_KEY, String(nextClientId));
+      window.localStorage.setItem(
+        workspaceStorageKey(storageScope, CLIENT_STORAGE_SUFFIX),
+        String(nextClientId),
+      );
     }
+  };
+
+  const removeDeletedClientContext = (deletedClientId: number) => {
+    window.localStorage.removeItem(
+      workspaceStorageKey(storageScope, `${BRIEF_STORAGE_PREFIX}${deletedClientId}`),
+    );
+    window.localStorage.removeItem(
+      workspaceStorageKey(storageScope, `${ANALYSIS_STORAGE_PREFIX}${deletedClientId}`),
+    );
+    if (clientId !== deletedClientId) return;
+
+    briefEditVersion.current += 1;
+    setBriefHydratedClientId(null);
+    setBrief(EMPTY_MARKETING_BRIEF);
+    setDatasetId(null);
+    setLatestInsights([]);
+    setClientName("");
+    setClientId(null);
+    window.localStorage.removeItem(workspaceStorageKey(storageScope, CLIENT_STORAGE_SUFFIX));
+    window.localStorage.removeItem(workspaceStorageKey(storageScope, CLIENT_NAME_STORAGE_SUFFIX));
   };
 
   const updateBrief = (nextBrief: MarketingBrief) => {
@@ -317,7 +406,7 @@ export default function App() {
     setBrief(nextBrief);
     if (clientId !== null) {
       window.localStorage.setItem(
-        `${BRIEF_STORAGE_PREFIX}${clientId}`,
+        workspaceStorageKey(storageScope, `${BRIEF_STORAGE_PREFIX}${clientId}`),
         JSON.stringify(nextBrief),
       );
     }
@@ -326,19 +415,19 @@ export default function App() {
   const openImportedDataset = (nextDatasetId: number) => {
     setDatasetId(nextDatasetId);
     setLatestInsights([]);
-    saveAnalysis(clientId, nextDatasetId, []);
+    saveAnalysis(storageScope, clientId, nextDatasetId, []);
     navigate("insights");
   };
 
   const changeDataset = (nextDatasetId: number | null) => {
     setDatasetId(nextDatasetId);
     setLatestInsights([]);
-    saveAnalysis(clientId, nextDatasetId, []);
+    saveAnalysis(storageScope, clientId, nextDatasetId, []);
   };
 
   const storeLatestInsights = (nextInsights: Insight[]) => {
     setLatestInsights(nextInsights);
-    saveAnalysis(clientId, datasetId, nextInsights);
+    saveAnalysis(storageScope, clientId, datasetId, nextInsights);
   };
 
   return (
@@ -371,7 +460,7 @@ export default function App() {
 
         <nav aria-label="Primary navigation" className="app-nav">
           <p className="app-nav-label">Workspace</p>
-          {TABS.map((tab, index) => (
+          {visibleTabs.map((tab, index) => (
             <a
               key={tab.id}
               href={hashForView(tab.id)}
@@ -395,7 +484,7 @@ export default function App() {
             </span>
             <div className="sidebar-user-details">
               <strong>{auth.currentUser.display_name}</strong>
-              <span>{auth.currentUser.role}</span>
+              <span>{auth.currentUser.workspace_name} · {auth.currentUser.role}</span>
             </div>
             <button className="sidebar-user-logout" type="button" onClick={() => void auth.logout()} title="Logout">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
@@ -403,6 +492,17 @@ export default function App() {
               </svg>
               <span>Logout</span>
             </button>
+            {auth.currentUser.workspaces.length > 1 && (
+              <select
+                aria-label="Workspace"
+                value={auth.currentUser.workspace_id}
+                onChange={(event) => void auth.switchWorkspace(Number(event.target.value))}
+              >
+                {auth.currentUser.workspaces.map((workspace) => (
+                  <option key={workspace.id} value={workspace.id}>{workspace.name}</option>
+                ))}
+              </select>
+            )}
           </section>
         )}
 
@@ -450,7 +550,7 @@ export default function App() {
         </header>
 
         <nav aria-label="Mobile navigation" className="mobile-tabs">
-          {TABS.map((tab) => (
+          {visibleTabs.map((tab) => (
             <a
               key={tab.id}
               href={hashForView(tab.id)}
@@ -508,7 +608,13 @@ export default function App() {
             />
           )}
           {view === "campaign-calendar" && (
-            <CampaignCalendar onNavigate={navigate} />
+            <CampaignCalendar
+              onNavigate={navigate}
+              onClientDeleted={removeDeletedClientContext}
+            />
+          )}
+          {view === "team-access" && auth?.currentUser?.role === "admin" && (
+            <TeamAccess />
           )}
         </div>
       </div>

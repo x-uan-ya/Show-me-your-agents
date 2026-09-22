@@ -19,6 +19,7 @@ from sqlalchemy import select
 from app.database import SessionLocal, init_db
 from app.models.client import Client
 from app.models.user import ClientMembership, User
+from app.models.workspace import Workspace, WorkspaceMembership
 from app.services.auth.passwords import hash_password
 
 DEMO_USERS = (
@@ -42,6 +43,19 @@ def main() -> None:
     password_hash = hash_password(_password())
     db = SessionLocal()
     try:
+        first_client = db.scalar(select(Client).order_by(Client.id))
+        workspace = (
+            db.get(Workspace, first_client.workspace_id)
+            if first_client is not None and first_client.workspace_id is not None
+            else db.scalar(select(Workspace).order_by(Workspace.id))
+        )
+        if workspace is None:
+            workspace = Workspace(name="Show Me Your Agents Demo Agency")
+            db.add(workspace)
+            db.flush()
+        if first_client is not None and first_client.workspace_id is None:
+            first_client.workspace_id = workspace.id
+
         created: list[User] = []
         for email, display_name, role in DEMO_USERS:
             user = db.scalar(select(User).where(User.email == email))
@@ -57,9 +71,27 @@ def main() -> None:
                 db.flush()
                 created.append(user)
 
-        first_client = db.scalar(select(Client).order_by(Client.id))
+            workspace_membership = db.scalar(
+                select(WorkspaceMembership).where(
+                    WorkspaceMembership.user_id == user.id,
+                    WorkspaceMembership.workspace_id == workspace.id,
+                )
+            )
+            if workspace_membership is None:
+                db.add(
+                    WorkspaceMembership(
+                        user_id=user.id,
+                        workspace_id=workspace.id,
+                        role=role,
+                        is_active=True,
+                    )
+                )
+
         if first_client is not None:
-            for email in (DEMO_USERS[1][0], DEMO_USERS[2][0]):
+            for email, role in (
+                (DEMO_USERS[1][0], "strategist"),
+                (DEMO_USERS[2][0], "reviewer"),
+            ):
                 user = db.scalar(select(User).where(User.email == email))
                 assert user is not None
                 membership = db.scalar(
@@ -69,7 +101,14 @@ def main() -> None:
                     )
                 )
                 if membership is None:
-                    db.add(ClientMembership(user_id=user.id, client_id=first_client.id))
+                    db.add(
+                        ClientMembership(
+                            user_id=user.id,
+                            client_id=first_client.id,
+                            role=role,
+                            is_active=True,
+                        )
+                    )
         db.commit()
         action = "Created" if created else "Demo users already existed"
         print(f"{action}. Login emails:")

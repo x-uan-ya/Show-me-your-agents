@@ -31,7 +31,7 @@ from app.services.insight_engine.customer_engine import (
     ProviderFailureError,
 )
 from app.utils.confidence import confidence_label
-from app.services.auth.dependencies import require_client_access
+from app.services.auth.dependencies import require_client_write
 
 router = APIRouter(prefix="/clients", tags=["analysis"])
 
@@ -42,7 +42,7 @@ def analyse_client_dataset(
     payload: AnalyseRequest,
     db: Session = Depends(get_db),
     provider: AIProvider = Depends(get_ai_provider),
-    _: Client = Depends(require_client_access),
+    _: Client = Depends(require_client_write),
 ) -> AnalyseResponse:
     engine = CustomerInsightEngine(db, provider)
 

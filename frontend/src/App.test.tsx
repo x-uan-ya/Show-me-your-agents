@@ -28,9 +28,9 @@ const briefRecord = {
 describe("App marketing brief persistence", () => {
   beforeEach(() => {
     window.location.hash = "#/import";
-    window.localStorage.setItem("customer-intelligence:selected-client", "7");
+    window.localStorage.setItem("customer-intelligence:anonymous:selected-client", "7");
     window.localStorage.setItem(
-      "customer-intelligence:brief:7",
+      "customer-intelligence:anonymous:brief:7",
       JSON.stringify({
         objective: "Stale browser objective",
         target_audience: "Stale audience",
@@ -39,6 +39,7 @@ describe("App marketing brief persistence", () => {
       }),
     );
     vi.spyOn(api, "listClients").mockResolvedValue([clientRecord]);
+    vi.spyOn(api, "getClient").mockResolvedValue(clientRecord);
     vi.spyOn(api, "getMarketingBrief").mockResolvedValue(briefRecord);
     vi.spyOn(api, "saveMarketingBrief").mockImplementation(
       async (_clientId, brief) => ({ ...briefRecord, ...brief }),
@@ -72,7 +73,44 @@ describe("App marketing brief persistence", () => {
       );
     }, { timeout: 1500 });
     expect(JSON.parse(
-      window.localStorage.getItem("customer-intelligence:brief:7") ?? "{}",
+      window.localStorage.getItem("customer-intelligence:anonymous:brief:7") ?? "{}",
     )).toMatchObject({ objective: "Increase repeat visits" });
+  });
+
+  it("clears the active client and its browser cache after deletion", async () => {
+    const user = userEvent.setup();
+    window.location.hash = "#/campaign-calendar";
+    window.localStorage.setItem("customer-intelligence:anonymous:selected-client-name", clientRecord.name);
+    window.localStorage.setItem(
+      "customer-intelligence:anonymous:analysis:7",
+      JSON.stringify({ datasetId: 9, insights: [] }),
+    );
+    vi.spyOn(api, "listCalendarItems").mockResolvedValue([{
+      id: 101,
+      campaign_id: 11,
+      campaign_name: "Lunch Campaign",
+      campaign_status: "draft",
+      client_id: clientRecord.id,
+      client_name: clientRecord.name,
+      channel: "Instagram",
+      publish_date: "2026-09-22",
+      status: "draft",
+      content: "Lunch post",
+      content_type: "Awareness",
+      cta: null,
+      owner: null,
+    }]);
+    vi.spyOn(api, "deleteClient").mockResolvedValue(undefined);
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+
+    render(<App />);
+    await user.click(await screen.findByRole("button", { name: "Delete customer" }));
+
+    await waitFor(() => expect(api.deleteClient).toHaveBeenCalledWith(7));
+    expect(screen.getByText("No client")).toBeInTheDocument();
+    expect(window.localStorage.getItem("customer-intelligence:anonymous:selected-client")).toBeNull();
+    expect(window.localStorage.getItem("customer-intelligence:anonymous:selected-client-name")).toBeNull();
+    expect(window.localStorage.getItem("customer-intelligence:anonymous:brief:7")).toBeNull();
+    expect(window.localStorage.getItem("customer-intelligence:anonymous:analysis:7")).toBeNull();
   });
 });

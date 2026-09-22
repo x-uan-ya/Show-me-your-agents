@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { api } from "../api/client";
@@ -80,6 +80,7 @@ describe("CampaignCalendar", () => {
   beforeEach(() => {
     vi.spyOn(api, "listCalendarItems").mockResolvedValue(records);
     vi.spyOn(api, "listClients").mockResolvedValue(clients);
+    vi.spyOn(api, "deleteClient").mockResolvedValue(undefined);
   });
 
   afterEach(() => vi.restoreAllMocks());
@@ -128,6 +129,31 @@ describe("CampaignCalendar", () => {
     fireEvent.change(screen.getByLabelText("Status"), { target: { value: "published" } });
     expect(screen.getByRole("button", { name: /TechStart: Fast Pickup Video/ })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Sunny Cafe: Lunch Promotion/ })).not.toBeInTheDocument();
+  });
+
+  it("counts distinct campaigns instead of scheduled content items", async () => {
+    render(<CampaignCalendar onNavigate={vi.fn()} />);
+
+    const row = await screen.findByRole("row", { name: /Sunny Cafe/ });
+    expect(within(row).getByText("1")).toBeInTheDocument();
+  });
+
+  it("notifies the app after a client is deleted so active context can be cleared", async () => {
+    const onClientDeleted = vi.fn();
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    render(
+      <CampaignCalendar
+        onNavigate={vi.fn()}
+        onClientDeleted={onClientDeleted}
+      />,
+    );
+
+    const row = await screen.findByRole("row", { name: /Sunny Cafe/ });
+    fireEvent.click(within(row).getByRole("button", { name: "Delete customer" }));
+
+    await waitFor(() => expect(api.deleteClient).toHaveBeenCalledWith(1));
+    expect(onClientDeleted).toHaveBeenCalledWith(1);
+    expect(screen.queryByText("Sunny Cafe")).not.toBeInTheDocument();
   });
 
   it("loads previous and next months from the backend", async () => {

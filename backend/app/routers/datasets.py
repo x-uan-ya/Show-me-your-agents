@@ -29,7 +29,7 @@ from app.schemas.ingestion import (
 )
 from app.services.ingestion.csv_ingestion import CsvIngestionService
 from app.services.ingestion.readers import IngestionError
-from app.services.auth.dependencies import require_client_access
+from app.services.auth.dependencies import require_client_write
 
 # Development file-size limit (5 MB). Kept modest on purpose for the hackathon.
 MAX_UPLOAD_BYTES = 5 * 1024 * 1024
@@ -61,7 +61,7 @@ async def upload_dataset(
     file: UploadFile = File(...),
     name: str | None = Form(default=None),
     db: Session = Depends(get_db),
-    _: Client = Depends(require_client_access),
+    _: Client = Depends(require_client_write),
 ) -> UploadResponse:
     filename = file.filename or "upload.csv"
     if not filename.lower().endswith(_ALLOWED_EXTENSIONS):
@@ -107,7 +107,7 @@ def confirm_mapping(
     dataset_id: int,
     payload: ConfirmMappingRequest,
     db: Session = Depends(get_db),
-    _: Client = Depends(require_client_access),
+    _: Client = Depends(require_client_write),
 ) -> ImportResultResponse:
     # Client isolation: only operate on a dataset owned by this client.
     dataset = DatasetRepository(db).get_for_client(dataset_id, client_id)

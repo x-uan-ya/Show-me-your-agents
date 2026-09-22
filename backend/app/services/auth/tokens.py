@@ -24,13 +24,18 @@ def _decode(value: str) -> bytes:
     return base64.urlsafe_b64decode(value + "=" * (-len(value) % 4))
 
 
-def create_session_token(user_id: int) -> str:
+def create_session_token(user_id: int, session_version: int = 1) -> str:
     settings = get_settings()
     now = int(time.time())
     header = _encode(json.dumps({"alg": "HS256", "typ": "JWT"}, separators=(",", ":")).encode())
     payload = _encode(
         json.dumps(
-            {"sub": str(user_id), "iat": now, "exp": now + settings.auth_session_seconds},
+            {
+                "sub": str(user_id),
+                "ver": session_version,
+                "iat": now,
+                "exp": now + settings.auth_session_seconds,
+            },
             separators=(",", ":"),
         ).encode()
     )
@@ -43,7 +48,7 @@ def create_session_token(user_id: int) -> str:
     return f"{header}.{payload}.{_encode(signature)}"
 
 
-def read_session_token(token: str) -> int:
+def read_session_token(token: str) -> tuple[int, int]:
     settings = get_settings()
     try:
         header, payload, signature = token.split(".", 2)
@@ -62,9 +67,10 @@ def read_session_token(token: str) -> int:
         if int(data["exp"]) <= int(time.time()):
             raise InvalidSessionToken("Expired token")
         user_id = int(data["sub"])
-        if user_id <= 0:
+        session_version = int(data.get("ver", 1))
+        if user_id <= 0 or session_version <= 0:
             raise InvalidSessionToken("Invalid subject")
-        return user_id
+        return user_id, session_version
     except (
         KeyError,
         ValueError,

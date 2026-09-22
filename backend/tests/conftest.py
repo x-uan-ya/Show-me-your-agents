@@ -7,7 +7,8 @@ from fastapi.testclient import TestClient
 
 from app.main import app
 from app.models.user import User
-from app.services.auth.dependencies import get_current_user
+from app.models.workspace import Workspace
+from app.services.auth.dependencies import AccessContext, get_current_access, get_current_user
 from app.services.ai.factory import get_ai_provider
 from app.services.ai.mock_provider import MockAIProvider
 
@@ -28,12 +29,23 @@ def use_mock_ai_provider():
         is_active=True,
         created_at=datetime.now(timezone.utc),
     )
+    # Existing business tests intentionally exercise their original endpoints
+    # without constructing tenant fixtures. A transient system workspace with
+    # id=None matches their legacy clients; dedicated isolation tests use real
+    # persisted workspaces and remove these overrides.
+    access = AccessContext(
+        user=admin,
+        workspace=Workspace(id=None, name="Test system workspace"),
+        workspace_role="admin",
+    )
     app.dependency_overrides[get_current_user] = lambda: admin
+    app.dependency_overrides[get_current_access] = lambda: access
     try:
         yield
     finally:
         app.dependency_overrides.pop(get_ai_provider, None)
         app.dependency_overrides.pop(get_current_user, None)
+        app.dependency_overrides.pop(get_current_access, None)
 
 
 @pytest.fixture
