@@ -387,11 +387,22 @@ export default function App() {
 
         {auth?.currentUser && (
           <section className="sidebar-user" aria-label="Signed in user">
-            <div>
+            <span className="sidebar-user-avatar" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                <circle cx="12" cy="8" r="3.5" />
+                <path d="M5.5 20c.6-4 2.8-6 6.5-6s5.9 2 6.5 6" strokeLinecap="round" />
+              </svg>
+            </span>
+            <div className="sidebar-user-details">
               <strong>{auth.currentUser.display_name}</strong>
               <span>{auth.currentUser.role}</span>
             </div>
-            <button type="button" onClick={() => void auth.logout()}>Logout</button>
+            <button className="sidebar-user-logout" type="button" onClick={() => void auth.logout()} title="Logout">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+                <path d="M10 5H5v14h5M14 8l4 4-4 4M9 12h9" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              <span>Logout</span>
+            </button>
           </section>
         )}
 

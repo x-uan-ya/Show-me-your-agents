@@ -498,6 +498,8 @@
 
   .sidebar-loop {
     @apply mx-2 rounded-2xl p-4 text-sm leading-6 text-slate-400;
+    margin-left: .25rem;
+    margin-right: .25rem;
     border: 1px solid rgba(40, 82, 124, 0.42);
     background: rgba(7, 22, 42, 0.72);
   }
@@ -1770,12 +1772,44 @@
 @keyframes auth-fade { from { opacity: 0; } }
 @keyframes auth-rise { from { opacity: 0; transform: translateY(12px) scale(.985); } }
 
-.sidebar-user { margin-top: auto; display: flex; align-items: center; justify-content: space-between; gap: .75rem; border-top: 1px solid #1e293b; padding: 1rem .25rem 0; }
-.sidebar-user div { min-width: 0; display: grid; }
-.sidebar-user strong { overflow: hidden; text-overflow: ellipsis; color: #f8fafc; font-size: .875rem; }
-.sidebar-user span { color: #7dd3fc; font-size: .72rem; text-transform: capitalize; }
-.sidebar-user button, .mobile-logout { color: #cbd5e1; font-size: .78rem; }
-.sidebar-user button:hover, .mobile-logout:hover { color: #7dd3fc; }
+.sidebar-user {
+  margin-top: auto;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: .7rem;
+  padding: .5rem .25rem;
+}
+.sidebar-user-avatar {
+  display: grid;
+  width: 2.35rem;
+  height: 2.35rem;
+  place-items: center;
+  border: 1px solid rgba(67, 183, 255, .36);
+  border-radius: .7rem;
+  color: #76d7ff;
+  background: rgba(47, 140, 255, .14);
+  box-shadow: 0 0 16px rgba(47, 140, 255, .12);
+}
+.sidebar-user-avatar svg { width: 1.25rem; height: 1.25rem; }
+.sidebar-user-details { min-width: 0; display: grid; gap: .08rem; }
+.sidebar-user-details strong { overflow: hidden; text-overflow: ellipsis; color: #f8fafc; font-size: .84rem; line-height: 1.2; }
+.sidebar-user-details span { color: #67e8f9; font-size: .65rem; font-weight: 650; text-transform: capitalize; }
+.sidebar-user-logout {
+  display: inline-flex;
+  align-items: center;
+  gap: .32rem;
+  border-radius: .55rem;
+  padding: .42rem .5rem;
+  color: #94a3b8;
+  font-size: .68rem;
+  font-weight: 650;
+  transition: color .18s ease, background .18s ease;
+}
+.sidebar-user-logout svg { width: .9rem; height: .9rem; }
+.sidebar-user-logout:hover { color: #d9f7ff; }
+.mobile-logout { color: #cbd5e1; font-size: .78rem; }
+.mobile-logout:hover { color: #7dd3fc; }
 
 @media (max-width: 1050px) {
   .landing-hero { grid-template-columns: 1fr; padding-top: 5rem; }
