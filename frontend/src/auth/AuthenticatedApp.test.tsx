@@ -2,8 +2,8 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { api } from "../api/client";
-import type { CurrentUser } from "../types";
+import { ApiError, api } from "../api/client";
+import type { CurrentUser, RegistrationPending } from "../types";
 import { AuthenticatedApp } from "./AuthenticatedApp";
 
 const userRecord: CurrentUser = {
@@ -16,6 +16,14 @@ const userRecord: CurrentUser = {
   workspace_id: 3,
   workspace_name: "Northstar Agency",
   workspaces: [{ id: 3, name: "Northstar Agency", role: "strategist" }],
+};
+
+const pendingRegistration: RegistrationPending = {
+  verification_required: true,
+  email: userRecord.email,
+  verification_token: "registration-browser-token-1234567890",
+  resend_after_seconds: 60,
+  message: "Check your email for a verification code to finish registration.",
 };
 
 function mockWorkspaceApis() {
@@ -34,6 +42,7 @@ describe("AuthenticatedApp", () => {
   afterEach(() => {
     vi.restoreAllMocks();
     window.localStorage.clear();
+    window.sessionStorage.clear();
     window.location.hash = "";
   });
 
@@ -75,10 +84,13 @@ describe("AuthenticatedApp", () => {
     expect(window.localStorage.getItem("customer-intelligence:auth:workspace-id")).toBe("3");
   });
 
-  it("email registration switches back to Login after creating an account", async () => {
+  it("registers in two steps and does not authenticate before email verification", async () => {
     const user = userEvent.setup();
     vi.spyOn(api, "currentUser").mockRejectedValue(new Error("401"));
-    const register = vi.spyOn(api, "register").mockResolvedValue(userRecord);
+    const register = vi.spyOn(api, "register").mockResolvedValue(pendingRegistration);
+    const verifyRegistration = vi.spyOn(api, "verifyRegistrationEmail").mockResolvedValue({
+      message: "Email verified. Sign in to continue.",
+    });
     render(<AuthenticatedApp />);
 
     await user.click(await screen.findByRole("button", { name: /Start your workspace/i }));
@@ -87,11 +99,108 @@ describe("AuthenticatedApp", () => {
     await user.type(dialog.getByLabelText("Work email"), userRecord.email);
     await user.type(dialog.getByLabelText("Password"), "ValidPassword!2026");
     await user.type(dialog.getByLabelText("Confirm password"), "ValidPassword!2026");
-    await user.click(dialog.getByRole("button", { name: "Create account" }));
+    await user.click(dialog.getByRole("button", { name: "Continue" }));
 
     await waitFor(() => expect(register).toHaveBeenCalledWith("Sarah Tan", userRecord.email, "ValidPassword!2026"));
-    expect(await screen.findByText("Your workspace account is ready. Sign in to continue.")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Verify your email" })).toBeInTheDocument();
+    expect(screen.queryByText("Sarah Tan")).not.toBeInTheDocument();
+    expect(dialog.queryByLabelText("Password")).not.toBeInTheDocument();
+    const stored = window.sessionStorage.getItem("campaign-intelligence:pending-registration");
+    expect(stored).toContain(pendingRegistration.verification_token);
+    expect(stored).not.toContain("ValidPassword!2026");
+
+    await user.type(dialog.getByLabelText("Verification code"), "123456");
+    await user.click(dialog.getByRole("button", { name: "Verify email" }));
+
+    await waitFor(() => expect(verifyRegistration).toHaveBeenCalledWith(
+      userRecord.email,
+      "123456",
+      pendingRegistration.verification_token,
+    ));
+    expect(await screen.findByText("Email verified. Sign in to continue.")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Sign in to Campaign Intelligence" })).toBeInTheDocument();
+    expect(window.sessionStorage.getItem("campaign-intelligence:pending-registration")).toBeNull();
+  });
+
+  it("shows a safe error for an invalid or expired registration code", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(api, "currentUser").mockRejectedValue(new Error("401"));
+    vi.spyOn(api, "register").mockResolvedValue(pendingRegistration);
+    const verifyRegistration = vi.spyOn(api, "verifyRegistrationEmail").mockRejectedValue(
+      new Error("backend verification details"),
+    );
+    render(<AuthenticatedApp />);
+
+    await user.click(await screen.findByRole("button", { name: /Start your workspace/i }));
+    const dialog = within(await screen.findByRole("dialog"));
+    await user.type(dialog.getByLabelText("Full name"), "Sarah Tan");
+    await user.type(dialog.getByLabelText("Work email"), userRecord.email);
+    await user.type(dialog.getByLabelText("Password"), "ValidPassword!2026");
+    await user.type(dialog.getByLabelText("Confirm password"), "ValidPassword!2026");
+    await user.click(dialog.getByRole("button", { name: "Continue" }));
+    await user.type(await dialog.findByLabelText("Verification code"), "999999");
+    await user.click(dialog.getByRole("button", { name: "Verify email" }));
+
+    await waitFor(() => expect(verifyRegistration).toHaveBeenCalled());
+    expect(await dialog.findByRole("alert")).toHaveTextContent(
+      "That verification code is invalid or has expired.",
+    );
+    expect(dialog.queryByText("backend verification details")).not.toBeInTheDocument();
+    expect(dialog.getByRole("heading", { name: "Verify your email" })).toBeInTheDocument();
+  });
+
+  it("enforces the registration resend cooldown in the UI", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(api, "currentUser").mockRejectedValue(new Error("401"));
+    vi.spyOn(api, "register").mockResolvedValue({
+      ...pendingRegistration,
+      resend_after_seconds: 0,
+    });
+    const resend = vi.spyOn(api, "resendRegistrationOtp").mockResolvedValue({
+      message: "If a pending registration matches those details, a verification code has been sent.",
+      resend_after_seconds: 60,
+    });
+    render(<AuthenticatedApp />);
+
+    await user.click(await screen.findByRole("button", { name: /Start your workspace/i }));
+    const dialog = within(await screen.findByRole("dialog"));
+    await user.type(dialog.getByLabelText("Full name"), "Sarah Tan");
+    await user.type(dialog.getByLabelText("Work email"), userRecord.email);
+    await user.type(dialog.getByLabelText("Password"), "ValidPassword!2026");
+    await user.type(dialog.getByLabelText("Confirm password"), "ValidPassword!2026");
+    await user.click(dialog.getByRole("button", { name: "Continue" }));
+
+    await user.click(await dialog.findByRole("button", { name: "Resend verification code" }));
+    await waitFor(() => expect(resend).toHaveBeenCalledWith(
+      userRecord.email,
+      pendingRegistration.verification_token,
+    ));
+    expect(dialog.getByRole("button", { name: "Resend code in 60s" })).toBeDisabled();
+  });
+
+  it("restores only safe pending-registration state after a refresh", async () => {
+    const safePendingState = {
+      email: userRecord.email,
+      verificationToken: pendingRegistration.verification_token,
+      resendAvailableAt: Date.now() + 60_000,
+    };
+    window.sessionStorage.setItem(
+      "campaign-intelligence:pending-registration",
+      JSON.stringify(safePendingState),
+    );
+    vi.spyOn(api, "currentUser").mockRejectedValue(new Error("401"));
+    render(<AuthenticatedApp />);
+
+    await userEvent.click(await screen.findByRole("button", { name: /Start your workspace/i }));
+    const dialog = within(await screen.findByRole("dialog"));
+    expect(await dialog.findByRole("heading", { name: "Verify your email" })).toBeInTheDocument();
+    expect(dialog.getByLabelText("Work email")).toHaveValue(userRecord.email);
+    expect(dialog.getByRole("button", { name: /Resend code in/ })).toBeDisabled();
+    expect(dialog.queryByLabelText("Password")).not.toBeInTheDocument();
+    expect(dialog.getByLabelText("Verification code")).toHaveValue("");
+
+    const persisted = window.sessionStorage.getItem("campaign-intelligence:pending-registration") ?? "";
+    expect(persisted).not.toMatch(/password|otp|code/i);
   });
 
   it("failed login shows a safe error", async () => {
@@ -108,6 +217,66 @@ describe("AuthenticatedApp", () => {
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Invalid email or password.");
     expect(screen.queryByText("backend detail")).not.toBeInTheDocument();
+  });
+
+  it("shows a useful message when password login is rate-limited", async () => {
+    const user = userEvent.setup();
+    window.location.hash = "#/login";
+    vi.spyOn(api, "currentUser").mockRejectedValue(new Error("401"));
+    vi.spyOn(api, "login").mockRejectedValue(
+      new ApiError("Too many requests. Please try again later.", 429, 60),
+    );
+    render(<AuthenticatedApp />);
+
+    const dialog = within(await screen.findByRole("dialog"));
+    await user.type(dialog.getByLabelText("Work email"), userRecord.email);
+    await user.type(dialog.getByLabelText("Password"), "WrongPassword!2026");
+    await user.click(dialog.getByRole("button", { name: "Sign in to workspace" }));
+
+    expect(await dialog.findByRole("alert")).toHaveTextContent(
+      "Too many sign-in attempts. Please wait a few minutes and try again.",
+    );
+  });
+
+  it("shows a useful message when an OTP request is rate-limited", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(api, "currentUser").mockRejectedValue(new Error("401"));
+    vi.spyOn(api, "requestEmailLoginCode").mockRejectedValue(
+      new ApiError("Too many requests. Please try again later.", 429, 600),
+    );
+    render(<AuthenticatedApp />);
+
+    const signInButtons = await screen.findAllByRole("button", { name: "Sign in" });
+    await user.click(signInButtons[0]);
+    const dialog = within(await screen.findByRole("dialog"));
+    await user.click(dialog.getByRole("button", { name: "Email me a sign-in code" }));
+    await user.type(dialog.getByLabelText("Work email"), userRecord.email);
+    await user.click(dialog.getByRole("button", { name: "Send verification code" }));
+
+    expect(await dialog.findByRole("alert")).toHaveTextContent(
+      "Too many verification code requests. Please try again later.",
+    );
+  });
+
+  it("shows a useful message when registration is rate-limited", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(api, "currentUser").mockRejectedValue(new Error("401"));
+    vi.spyOn(api, "register").mockRejectedValue(
+      new ApiError("Too many requests. Please try again later.", 429, 3600),
+    );
+    render(<AuthenticatedApp />);
+
+    await user.click(await screen.findByRole("button", { name: /Start your workspace/i }));
+    const dialog = within(await screen.findByRole("dialog"));
+    await user.type(dialog.getByLabelText("Full name"), "Sarah Tan");
+    await user.type(dialog.getByLabelText("Work email"), userRecord.email);
+    await user.type(dialog.getByLabelText("Password"), "ValidPassword!2026");
+    await user.type(dialog.getByLabelText("Confirm password"), "ValidPassword!2026");
+    await user.click(dialog.getByRole("button", { name: "Continue" }));
+
+    expect(await dialog.findByRole("alert")).toHaveTextContent(
+      "Too many registration attempts. Please try again later.",
+    );
   });
 
   it("signs in with a single-use email code", async () => {

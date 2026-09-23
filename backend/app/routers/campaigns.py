@@ -2,7 +2,7 @@
 
 from datetime import date
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -35,6 +35,7 @@ from app.services.auth.dependencies import (
     require_client_write,
     user_can_access_client,
 )
+from app.services.rate_limit import enforce_ai_action
 
 router = APIRouter(prefix="/clients/{client_id}", tags=["campaigns"])
 calendar_router = APIRouter(prefix="/calendar", tags=["campaigns"])
@@ -180,11 +181,17 @@ def create_campaign(
 def generate_campaign(
     client_id: int,
     payload: CampaignGenerateRequest,
+    request: Request,
     db: Session = Depends(get_db),
     provider: AIProvider = Depends(get_ai_provider),
+    access: AccessContext = Depends(get_current_access),
     _: Client = Depends(require_client_write),
 ) -> CampaignGenerationRead:
     """Generate the campaign and save it in one backend-owned workflow."""
+    # Supplying a validated gap avoids a provider call; otherwise generation
+    # performs one campaign-gap LLM action and consumes the shared quota.
+    if payload.gap is None:
+        enforce_ai_action(request, access)
     try:
         campaign, gap = CampaignGenerationService(db, provider).generate(
             client_id, payload

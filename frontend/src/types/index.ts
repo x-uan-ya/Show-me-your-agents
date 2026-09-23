@@ -29,6 +29,19 @@ export interface AuthMessage {
   message: string;
 }
 
+export interface RegistrationPending {
+  verification_required: boolean;
+  email: string;
+  verification_token: string;
+  resend_after_seconds: number;
+  message: string;
+}
+
+export interface RegistrationOtpStatus {
+  message: string;
+  resend_after_seconds: number;
+}
+
 export type ClientRole = "strategist" | "reviewer" | "viewer";
 
 export interface WorkspaceMember {

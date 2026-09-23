@@ -66,6 +66,7 @@ def main() -> None:
                     display_name=display_name,
                     role=role,
                     is_active=True,
+                    email_verified=True,
                 )
                 db.add(user)
                 db.flush()

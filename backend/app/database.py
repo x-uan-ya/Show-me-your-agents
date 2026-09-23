@@ -61,6 +61,23 @@ def migrate_sqlite_multitenancy(target_engine: Engine) -> None:
                 column[1]
                 for column in connection.execute(text("PRAGMA table_info(users)"))
             }
+            if "email_verified" not in user_columns:
+                # All users created before email verification existed were
+                # already trusted identities, so preserve their access.
+                connection.execute(
+                    text(
+                        "ALTER TABLE users ADD COLUMN "
+                        "email_verified BOOLEAN NOT NULL DEFAULT 1"
+                    )
+                )
+            if "pending_workspace_name" not in user_columns:
+                connection.execute(
+                    text("ALTER TABLE users ADD COLUMN pending_workspace_name VARCHAR(256)")
+                )
+            if "registration_token_hash" not in user_columns:
+                connection.execute(
+                    text("ALTER TABLE users ADD COLUMN registration_token_hash VARCHAR(64)")
+                )
             if "session_version" not in user_columns:
                 connection.execute(
                     text(
@@ -101,7 +118,7 @@ def migrate_sqlite_multitenancy(target_engine: Engine) -> None:
             text(
                 "SELECT EXISTS(SELECT 1 FROM clients WHERE workspace_id IS NULL) "
                 "OR EXISTS("
-                "SELECT 1 FROM users u WHERE NOT EXISTS ("
+                "SELECT 1 FROM users u WHERE u.email_verified = 1 AND NOT EXISTS ("
                 "SELECT 1 FROM workspace_memberships wm WHERE wm.user_id = u.id"
                 "))"
             )
@@ -132,7 +149,7 @@ def migrate_sqlite_multitenancy(target_engine: Engine) -> None:
                     "SELECT id, :workspace_id, "
                     "CASE WHEN role IN ('admin', 'strategist', 'reviewer', 'viewer') "
                     "THEN role ELSE 'viewer' END, is_active FROM users u "
-                    "WHERE NOT EXISTS ("
+                    "WHERE u.email_verified = 1 AND NOT EXISTS ("
                     "SELECT 1 FROM workspace_memberships wm WHERE wm.user_id = u.id"
                     ")"
                 ),
@@ -151,7 +168,7 @@ def migrate_sqlite_multitenancy(target_engine: Engine) -> None:
                 "FROM client_memberships cm "
                 "JOIN clients c ON c.id = cm.client_id "
                 "JOIN users u ON u.id = cm.user_id "
-                "WHERE c.workspace_id IS NOT NULL"
+                "WHERE c.workspace_id IS NOT NULL AND u.email_verified = 1"
             )
         )
         connection.execute(

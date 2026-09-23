@@ -1,18 +1,21 @@
 """Authentication, cookie session, roles and direct client-access tests."""
 
+from datetime import UTC, datetime, timedelta
+
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.database import Base, get_db
 from app.main import app
 from app.models.client import Client
+from app.models.email_otp import EmailOtpChallenge
 from app.models.user import ClientMembership, User
 from app.models.workspace import Workspace, WorkspaceMembership
 from app.services.auth.dependencies import get_current_access, get_current_user
-from app.services.auth.passwords import hash_password
+from app.services.auth.passwords import hash_password, verify_password
 
 PASSWORD = "LocalTestPassword!2026"
 
@@ -107,6 +110,7 @@ def auth_env():
         "b": client_b.id,
         "workspace_a": workspace_a.id,
         "workspace_b": workspace_b.id,
+        "session_factory": testing_session,
     }
     db.close()
 
@@ -117,6 +121,42 @@ def auth_env():
 
 def _login(client: TestClient, email: str, password: str = PASSWORD):
     return client.post("/api/auth/login", json={"email": email, "password": password})
+
+
+def _capture_otp(monkeypatch) -> list[tuple[str, str, str]]:
+    delivered: list[tuple[str, str, str]] = []
+    monkeypatch.setattr(
+        "app.routers.auth.send_otp_email",
+        lambda email, code, purpose: delivered.append((email, code, purpose)),
+    )
+    return delivered
+
+
+def _register(
+    client: TestClient,
+    email: str = "new.user@example.test",
+    password: str = "RegistrationPassword!2026",
+    display_name: str = "New User",
+):
+    return client.post(
+        "/api/auth/register",
+        json={
+            "email": email,
+            "password": password,
+            "display_name": display_name,
+        },
+    )
+
+
+def _verify_registration(client: TestClient, registration: dict, code: str):
+    return client.post(
+        "/api/auth/verify-registration-email",
+        json={
+            "email": registration["email"],
+            "code": code,
+            "verification_token": registration["verification_token"],
+        },
+    )
 
 
 def test_valid_login_sets_session_and_returns_safe_user(auth_env):
@@ -133,23 +173,80 @@ def test_valid_login_sets_session_and_returns_safe_user(auth_env):
     assert "password_hash" not in me.json()
 
 
-def test_email_registration_creates_isolated_workspace_owner_then_allows_login(auth_env):
-    client, _ = auth_env
-    response = client.post(
-        "/api/auth/register",
-        json={
-            "email": "new.user@example.test",
-            "password": "RegistrationPassword!2026",
-            "display_name": "New User",
-        },
-    )
+def test_registration_stays_untrusted_until_email_is_verified(auth_env, monkeypatch):
+    client, ids = auth_env
+    delivered = _capture_otp(monkeypatch)
+    session_factory = ids["session_factory"]
+
+    response = _register(client)
     assert response.status_code == 201
-    assert response.json()["role"] == "admin"
-    assert response.json()["workspace_name"] == "New User's Workspace"
-    assert "password_hash" not in response.json()
-    assert _login(
-        client, "new.user@example.test", "RegistrationPassword!2026"
-    ).status_code == 200
+    registration = response.json()
+    assert registration["verification_required"] is True
+    assert registration["email"] == "new.user@example.test"
+    assert len(registration["verification_token"]) >= 32
+    assert "password_hash" not in registration
+    assert delivered[0][1] not in str(registration)
+    assert "set-cookie" not in response.headers
+    assert delivered[0][0] == registration["email"]
+    assert delivered[0][2] == "registration"
+
+    with session_factory() as db:
+        user = db.scalar(select(User).where(User.email == registration["email"]))
+        assert user is not None
+        assert user.is_active is True
+        assert user.email_verified is False
+        assert user.role == "viewer"
+        assert user.pending_workspace_name == "New User's Workspace"
+        assert user.registration_token_hash != registration["verification_token"]
+        assert verify_password("RegistrationPassword!2026", user.password_hash)
+        assert db.scalar(
+            select(func.count()).select_from(WorkspaceMembership).where(
+                WorkspaceMembership.user_id == user.id
+            )
+        ) == 0
+
+    blocked = _login(client, registration["email"], "RegistrationPassword!2026")
+    assert blocked.status_code == 403
+    assert blocked.json()["detail"] == "Email verification is required before sign in"
+    assert client.get("/api/auth/me").status_code == 401
+
+    verified = _verify_registration(client, registration, delivered[0][1])
+    assert verified.status_code == 200
+    assert verified.json()["message"] == "Email verified. Sign in to continue."
+    assert "set-cookie" not in verified.headers
+
+    with session_factory() as db:
+        user = db.scalar(select(User).where(User.email == registration["email"]))
+        assert user is not None
+        assert user.email_verified is True
+        assert user.role == "admin"
+        assert user.pending_workspace_name is None
+        assert user.registration_token_hash is None
+        challenge = db.scalar(
+            select(EmailOtpChallenge)
+            .where(
+                EmailOtpChallenge.user_id == user.id,
+                EmailOtpChallenge.purpose == "registration",
+            )
+            .order_by(EmailOtpChallenge.id.desc())
+        )
+        assert challenge is not None
+        assert challenge.code_hash != delivered[0][1]
+        assert len(challenge.code_hash) == 64
+        assert challenge.consumed_at is not None
+        membership = db.scalar(
+            select(WorkspaceMembership).where(WorkspaceMembership.user_id == user.id)
+        )
+        assert membership is not None
+        assert membership.role == "admin"
+        assert membership.workspace.name == "New User's Workspace"
+
+    # Registration verification is single-use and never signs the user in implicitly.
+    assert _verify_registration(client, registration, delivered[0][1]).status_code == 400
+    logged_in = _login(client, registration["email"], "RegistrationPassword!2026")
+    assert logged_in.status_code == 200
+    assert logged_in.json()["role"] == "admin"
+    assert logged_in.json()["workspace_name"] == "New User's Workspace"
 
 
 def test_duplicate_registration_is_rejected(auth_env):
@@ -163,6 +260,188 @@ def test_duplicate_registration_is_rejected(auth_env):
         },
     )
     assert response.status_code == 409
+
+
+def test_incorrect_or_expired_registration_otp_does_not_activate_account(
+    auth_env, monkeypatch
+):
+    client, ids = auth_env
+    delivered = _capture_otp(monkeypatch)
+    registration = _register(client, email="expires@example.test").json()
+    wrong_code = "000000" if delivered[0][1] != "000000" else "999999"
+
+    assert _verify_registration(client, registration, wrong_code).status_code == 400
+    assert client.post(
+        "/api/auth/verify-registration-email",
+        json={
+            "email": registration["email"],
+            "code": delivered[0][1],
+            "verification_token": "x" * 43,
+        },
+    ).status_code == 400
+
+    session_factory = ids["session_factory"]
+    with session_factory() as db:
+        challenge = db.scalar(
+            select(EmailOtpChallenge)
+            .where(
+                EmailOtpChallenge.email == registration["email"],
+                EmailOtpChallenge.purpose == "registration",
+            )
+            .order_by(EmailOtpChallenge.id.desc())
+        )
+        assert challenge is not None
+        challenge.expires_at = datetime.now(UTC).replace(tzinfo=None) - timedelta(seconds=1)
+        db.commit()
+
+    assert _verify_registration(client, registration, delivered[0][1]).status_code == 400
+    with session_factory() as db:
+        user = db.scalar(select(User).where(User.email == registration["email"]))
+        assert user is not None and user.email_verified is False
+        assert db.scalar(
+            select(func.count()).select_from(WorkspaceMembership).where(
+                WorkspaceMembership.user_id == user.id
+            )
+        ) == 0
+
+
+def test_registration_otp_locks_after_five_failed_attempts(auth_env, monkeypatch):
+    client, _ = auth_env
+    delivered = _capture_otp(monkeypatch)
+    registration = _register(client, email="attempts@example.test").json()
+    wrong_code = "000000" if delivered[0][1] != "000000" else "999999"
+
+    for _ in range(5):
+        assert _verify_registration(client, registration, wrong_code).status_code == 400
+    assert _verify_registration(client, registration, delivered[0][1]).status_code == 400
+    assert _login(
+        client, registration["email"], "RegistrationPassword!2026"
+    ).status_code == 403
+    retried = _register(client, email=registration["email"])
+    assert retried.status_code == 201
+    # Retrying registration cannot immediately reset the per-email OTP limit.
+    assert len(delivered) == 1
+    assert retried.json()["verification_token"] != registration["verification_token"]
+
+
+def test_unverified_registration_cannot_bypass_verification_with_other_auth_flows(
+    auth_env, monkeypatch
+):
+    client, _ = auth_env
+    delivered = _capture_otp(monkeypatch)
+    registration = _register(client, email="no-bypass@example.test").json()
+    registration_code = delivered[0][1]
+
+    login_request = client.post(
+        "/api/auth/email-login/request",
+        json={"email": registration["email"]},
+    )
+    reset_request = client.post(
+        "/api/auth/password-reset/request",
+        json={"email": registration["email"]},
+    )
+    assert login_request.status_code == reset_request.status_code == 202
+    assert login_request.json() == reset_request.json()
+    assert len(delivered) == 1
+    assert client.post(
+        "/api/auth/email-login/verify",
+        json={"email": registration["email"], "code": registration_code},
+    ).status_code == 401
+    assert client.post(
+        "/api/auth/password-reset/confirm",
+        json={
+            "email": registration["email"],
+            "code": registration_code,
+            "new_password": "BypassAttempt!2026",
+        },
+    ).status_code == 400
+
+
+def test_registration_resend_obeys_cooldown_and_replaces_old_code(auth_env, monkeypatch):
+    client, ids = auth_env
+    delivered = _capture_otp(monkeypatch)
+    registration = _register(client, email="resend@example.test").json()
+    first_code = delivered[0][1]
+
+    immediate = client.post(
+        "/api/auth/resend-registration-otp",
+        json={
+            "email": registration["email"],
+            "verification_token": registration["verification_token"],
+        },
+    )
+    assert immediate.status_code == 202
+    assert len(delivered) == 1
+
+    session_factory = ids["session_factory"]
+    with session_factory() as db:
+        challenge = db.scalar(
+            select(EmailOtpChallenge)
+            .where(
+                EmailOtpChallenge.email == registration["email"],
+                EmailOtpChallenge.purpose == "registration",
+            )
+            .order_by(EmailOtpChallenge.id.desc())
+        )
+        assert challenge is not None
+        challenge.created_at = datetime.now(UTC).replace(tzinfo=None) - timedelta(minutes=2)
+        db.commit()
+
+    resent = client.post(
+        "/api/auth/resend-registration-otp",
+        json={
+            "email": registration["email"],
+            "verification_token": registration["verification_token"],
+        },
+    )
+    assert resent.status_code == 202
+    assert resent.json()["resend_after_seconds"] == 60
+    assert len(delivered) == 2
+    assert _verify_registration(client, registration, first_code).status_code == 400
+    assert _verify_registration(client, registration, delivered[1][1]).status_code == 200
+
+
+def test_duplicate_pending_registration_reuses_user_and_requires_latest_token(
+    auth_env, monkeypatch
+):
+    client, ids = auth_env
+    delivered = _capture_otp(monkeypatch)
+    first = _register(
+        client,
+        email="Pending.User@Example.Test",
+        password="FirstRegistration!2026",
+        display_name="First Name",
+    ).json()
+    second_response = _register(
+        client,
+        email="pending.user@example.test",
+        password="SecondRegistration!2026",
+        display_name="Second Name",
+    )
+    assert second_response.status_code == 201
+    second = second_response.json()
+    assert second["email"] == "pending.user@example.test"
+    assert second["verification_token"] != first["verification_token"]
+    # The existing OTP remains within its cooldown, but only the newest opaque
+    # browser token can complete the replaced pending registration.
+    assert len(delivered) == 1
+    assert _verify_registration(client, first, delivered[0][1]).status_code == 400
+
+    session_factory = ids["session_factory"]
+    with session_factory() as db:
+        assert db.scalar(
+            select(func.count()).select_from(User).where(
+                User.email == "pending.user@example.test"
+            )
+        ) == 1
+        user = db.scalar(select(User).where(User.email == "pending.user@example.test"))
+        assert user is not None
+        assert user.display_name == "Second Name"
+        assert verify_password("SecondRegistration!2026", user.password_hash)
+
+    assert _verify_registration(client, second, delivered[0][1]).status_code == 200
+    assert _login(client, second["email"], "FirstRegistration!2026").status_code == 401
+    assert _login(client, second["email"], "SecondRegistration!2026").status_code == 200
 
 
 def test_invalid_password_is_rejected(auth_env):
@@ -323,24 +602,57 @@ def test_strategist_can_create_client_but_cannot_delete_it(auth_env):
     ).status_code == 404
 
 
-def test_admin_can_add_existing_user_and_assign_client_access(auth_env):
+def test_admin_cannot_add_unverified_user_then_can_add_after_verification(
+    auth_env, monkeypatch
+):
     client, ids = auth_env
-    registration = client.post(
-        "/api/auth/register",
-        json={
-            "email": "invited@example.test",
-            "password": "RegistrationPassword!2026",
-            "display_name": "Invited User",
-        },
-    )
-    invited_id = registration.json()["id"]
-    invited_workspace_id = registration.json()["workspace_id"]
+    delivered = _capture_otp(monkeypatch)
+    registration_response = _register(client, email="invited@example.test")
+    assert registration_response.status_code == 201
+    registration = registration_response.json()
+
     assert _login(client, "admin@example.test").status_code == 200
     self_update = client.post(
         "/api/workspaces/current/members",
         json={"email": "admin@example.test", "role": "viewer"},
     )
     assert self_update.status_code == 422
+    unverified_member = client.post(
+        "/api/workspaces/current/members",
+        json={"email": "invited@example.test", "role": "reviewer"},
+    )
+    assert unverified_member.status_code == 422
+    assert unverified_member.json()["detail"] == (
+        "User must verify their email before workspace access can be granted"
+    )
+
+    session_factory = ids["session_factory"]
+    with session_factory() as db:
+        pending_invited = db.scalar(
+            select(User).where(User.email == "invited@example.test")
+        )
+        assert pending_invited is not None
+        invited_id = pending_invited.id
+    unverified_client_assignment = client.put(
+        f"/api/workspaces/current/clients/{ids['a']}/members/{invited_id}",
+        json={"role": "reviewer"},
+    )
+    assert unverified_client_assignment.status_code == 422
+    assert unverified_client_assignment.json()["detail"] == (
+        "Verified active user required before client assignment"
+    )
+
+    assert _verify_registration(client, registration, delivered[0][1]).status_code == 200
+    with session_factory() as db:
+        invited = db.scalar(select(User).where(User.email == "invited@example.test"))
+        assert invited is not None
+        invited_id = invited.id
+        own_membership = db.scalar(
+            select(WorkspaceMembership).where(WorkspaceMembership.user_id == invited.id)
+        )
+        assert own_membership is not None
+        invited_workspace_id = own_membership.workspace_id
+
     member = client.post(
         "/api/workspaces/current/members",
         json={"email": "invited@example.test", "role": "reviewer"},

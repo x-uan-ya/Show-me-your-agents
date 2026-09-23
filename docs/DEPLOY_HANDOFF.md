@@ -18,15 +18,17 @@ push it to Lightsail, deploy, verify, and (later) delete.
    aws sso login         # each session
    aws sts get-caller-identity   # should print account 221027267933
    ```
-3. **The rotated LLM gateway key** (ask the team lead — do NOT use the old one;
-   it was leaked and must be rotated). You will paste it into YOUR terminal
-   only, never into a file that gets committed, chat, or a screenshot.
+3. **The rotated LLM gateway key and SMTP credentials**. You will paste them
+   into YOUR terminal only, never into a file that gets committed, chat, or a
+   screenshot.
 
 ---
 
 ## Cost guardrails (important — limited AWS credit)
 
 - Use **one** service at **micro** power, **scale 1** (~$10/month, prorated).
+- Rate-limit counters are process-local, so do not increase scale without first
+  moving them to a shared atomic store such as Redis.
 - Do NOT create a second service or scale up.
 - **Delete the service after the demo** (last command in this doc). Billing
   stops when the service is deleted.
@@ -40,6 +42,13 @@ push it to Lightsail, deploy, verify, and (later) delete.
 ```powershell
 $env:AWS_REGION = "ap-southeast-1"
 $env:LLM_GATEWAY_API_KEY = "<paste-the-ROTATED-key-here>"
+$env:AUTH_SECRET = "AUTH_SECRET_PLACEHOLDER"
+$env:CORS_ORIGINS = "CORS_ORIGINS_PLACEHOLDER" # replace with exact HTTPS origin
+$env:SMTP_HOST = "SMTP_HOST_PLACEHOLDER"
+$env:SMTP_PORT = "587"
+$env:SMTP_USERNAME = "SMTP_USERNAME_PLACEHOLDER"
+$env:SMTP_PASSWORD = "SMTP_PASSWORD_PLACEHOLDER"
+$env:SMTP_FROM_EMAIL = "SMTP_FROM_EMAIL_PLACEHOLDER"
 ```
 
 ### 1. Build the combined image (frontend + backend)
@@ -80,14 +89,22 @@ aws lightsail push-container-image --service-name multiminds-app --label app --i
 
 Copy the image ref it prints, e.g. `:multiminds-app.app.1`.
 
-### 4. Render the deployment spec (injects image ref + secret; not committed)
+### 4. Render the deployment spec (injects runtime values; not committed)
 
 ```powershell
 $env:IMAGE_REF = ":multiminds-app.app.1"   # use the value from step 3
-(Get-Content docs\lightsail\containers.template.json) `
-  -replace 'IMAGE_REF_PLACEHOLDER', $env:IMAGE_REF `
-  -replace 'SET_AT_DEPLOY_TIME', $env:LLM_GATEWAY_API_KEY |
-  Set-Content containers.json
+$spec = Get-Content docs\lightsail\containers.template.json -Raw | ConvertFrom-Json
+$spec.app.image = $env:IMAGE_REF
+$containerEnv = $spec.app.environment
+$containerEnv.LLM_GATEWAY_API_KEY = $env:LLM_GATEWAY_API_KEY
+$containerEnv.AUTH_SECRET = $env:AUTH_SECRET
+$containerEnv.CORS_ORIGINS = $env:CORS_ORIGINS
+$containerEnv.SMTP_HOST = $env:SMTP_HOST
+$containerEnv.SMTP_PORT = $env:SMTP_PORT
+$containerEnv.SMTP_USERNAME = $env:SMTP_USERNAME
+$containerEnv.SMTP_PASSWORD = $env:SMTP_PASSWORD
+$containerEnv.SMTP_FROM_EMAIL = $env:SMTP_FROM_EMAIL
+$spec | ConvertTo-Json -Depth 10 | Set-Content -Encoding utf8 containers.json
 ```
 
 `containers.json` is gitignored (it holds the key). Do not commit it.
@@ -141,7 +158,11 @@ aws lightsail delete-container-service --service-name multiminds-app --region $e
 ## Security rules (do not skip)
 
 - Never commit `containers.json`, `.env`, or any real key.
-- Never paste the AWS keys or the LLM key into chat, PRs, or screenshots.
+- Never paste AWS keys, the LLM key, `AUTH_SECRET`, or SMTP credentials into
+  chat, PRs, logs, or screenshots.
 - If a key is exposed, rotate it.
+- Production startup rejects unresolved placeholders, insecure cookies,
+  wildcard CORS, console OTP, incomplete SMTP configuration, and disabled rate
+  limiting.
 
 See `docs/DEPLOYMENT_LIGHTSAIL.md` for the longer reference version.

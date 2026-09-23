@@ -7,13 +7,21 @@ external API keys.
 """
 
 from functools import lru_cache
+from ipaddress import ip_network
 from typing import Literal
 
-from pydantic import AliasChoices, Field, SecretStr
+from pydantic import AliasChoices, Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 AIProvider = Literal["mock", "hackathon"]
 EmailDelivery = Literal["console", "smtp"]
+
+DEVELOPMENT_AUTH_SECRET = "development-only-change-this-secret"
+MIN_PRODUCTION_AUTH_SECRET_LENGTH = 32
+
+
+class ProductionConfigurationError(RuntimeError):
+    """Raised when production would start with an unsafe configuration."""
 
 
 class Settings(BaseSettings):
@@ -34,7 +42,7 @@ class Settings(BaseSettings):
     database_url: str = Field(default="sqlite:///./customer_insight.db")
 
     # Local authentication. Production deployments must override AUTH_SECRET.
-    auth_secret: SecretStr = Field(default="development-only-change-this-secret")
+    auth_secret: SecretStr = Field(default=DEVELOPMENT_AUTH_SECRET)
     auth_cookie_name: str = Field(default="smy_agents_session")
     auth_session_seconds: int = Field(default=8 * 60 * 60, ge=300, le=30 * 24 * 60 * 60)
     auth_cookie_secure: bool = Field(default=False)
@@ -54,6 +62,29 @@ class Settings(BaseSettings):
     email_otp_expiry_minutes: int = Field(default=10, ge=2, le=30)
     email_otp_resend_seconds: int = Field(default=60, ge=15, le=600)
     email_otp_max_attempts: int = Field(default=5, ge=3, le=10)
+
+    # Process-local abuse protection. The deployed Lightsail service currently
+    # runs at scale=1; horizontal scaling requires a shared limiter backend.
+    rate_limit_enabled: bool = Field(default=True)
+    rate_limit_trusted_proxy_cidrs: str = Field(default="")
+    login_ip_limit: int = Field(default=10, ge=1, le=10_000)
+    login_ip_window_seconds: int = Field(default=60, ge=1, le=86_400)
+    login_account_limit: int = Field(default=5, ge=1, le=10_000)
+    login_account_window_seconds: int = Field(default=600, ge=1, le=86_400)
+    register_ip_limit: int = Field(default=5, ge=1, le=10_000)
+    register_ip_window_seconds: int = Field(default=3_600, ge=1, le=86_400)
+    register_email_limit: int = Field(default=3, ge=1, le=10_000)
+    register_email_window_seconds: int = Field(default=3_600, ge=1, le=86_400)
+    otp_email_limit: int = Field(default=5, ge=1, le=10_000)
+    otp_email_window_seconds: int = Field(default=3_600, ge=1, le=86_400)
+    otp_ip_limit: int = Field(default=10, ge=1, le=10_000)
+    otp_ip_window_seconds: int = Field(default=3_600, ge=1, le=86_400)
+    otp_verify_email_limit: int = Field(default=10, ge=1, le=10_000)
+    otp_verify_ip_limit: int = Field(default=30, ge=1, le=10_000)
+    otp_verify_window_seconds: int = Field(default=600, ge=1, le=86_400)
+    ai_user_limit: int = Field(default=10, ge=1, le=10_000)
+    ai_workspace_limit: int = Field(default=30, ge=1, le=10_000)
+    ai_rate_limit_window_seconds: int = Field(default=3_600, ge=1, le=86_400)
 
     # CORS: comma-separated list of allowed origins for the frontend.
     cors_origins: str = Field(default="http://localhost:5173,http://127.0.0.1:5173")
@@ -113,9 +144,113 @@ class Settings(BaseSettings):
     # contextual fields (source / date / product).
     evidence_min_context_ratio: float = Field(default=0.5, ge=0.0, le=1.0)
 
+    @field_validator("rate_limit_trusted_proxy_cidrs")
+    @classmethod
+    def validate_trusted_proxy_cidrs(cls, value: str) -> str:
+        entries = [entry.strip() for entry in value.split(",") if entry.strip()]
+        for entry in entries:
+            try:
+                ip_network(entry, strict=False)
+            except ValueError as exc:
+                raise ValueError(f"Invalid trusted proxy CIDR: {entry}") from exc
+        return ",".join(entries)
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
+
+
+def _looks_like_placeholder(value: str) -> bool:
+    normalized = value.strip().casefold().replace("-", "_")
+    return any(
+        marker in normalized
+        for marker in (
+            "placeholder",
+            "replace_with",
+            "set_at_deploy_time",
+        )
+    )
+
+
+def validate_production_settings(settings: Settings) -> None:
+    """Fail closed before startup when production security settings are unsafe.
+
+    Development defaults intentionally remain convenient for localhost. Production
+    must explicitly provide its authentication secret and CORS allowlist and must
+    use encrypted, authenticated SMTP delivery for OTP messages.
+    """
+
+    if settings.environment.strip().casefold() != "production":
+        return
+
+    errors: list[str] = []
+    explicitly_set = settings.model_fields_set
+    auth_secret = settings.auth_secret.get_secret_value()
+
+    if "auth_secret" not in explicitly_set:
+        errors.append("AUTH_SECRET must be explicitly set in production")
+    elif auth_secret == DEVELOPMENT_AUTH_SECRET:
+        errors.append("AUTH_SECRET must not use the development default in production")
+    elif (
+        len(auth_secret) < MIN_PRODUCTION_AUTH_SECRET_LENGTH
+        or len(set(auth_secret)) < 8
+        or _looks_like_placeholder(auth_secret)
+    ):
+        errors.append(
+            "AUTH_SECRET is too weak for production; use at least 32 random characters"
+        )
+
+    if not settings.auth_cookie_secure:
+        errors.append("AUTH_COOKIE_SECURE must be true in production")
+
+    if not settings.rate_limit_enabled:
+        errors.append("RATE_LIMIT_ENABLED must be true in production")
+
+    origins = settings.cors_origin_list
+    if "cors_origins" not in explicitly_set or not origins:
+        errors.append("CORS_ORIGINS must be an explicit non-empty allowlist in production")
+    elif any("*" in origin for origin in origins):
+        errors.append("CORS_ORIGINS must not contain '*' when credentials are enabled")
+    elif any(_looks_like_placeholder(origin) for origin in origins):
+        errors.append("CORS_ORIGINS contains an unresolved deployment placeholder")
+
+    if settings.email_delivery != "smtp":
+        errors.append("EMAIL_DELIVERY must be 'smtp'; console OTP is disabled in production")
+    else:
+        smtp_password = (
+            settings.smtp_password.get_secret_value()
+            if settings.smtp_password is not None
+            else ""
+        )
+        required_smtp_values = {
+            "SMTP_HOST": settings.smtp_host or "",
+            "SMTP_USERNAME": settings.smtp_username or "",
+            "SMTP_PASSWORD": smtp_password,
+            "SMTP_FROM_EMAIL": settings.smtp_from_email,
+        }
+        for name, value in required_smtp_values.items():
+            if not value.strip() or _looks_like_placeholder(value):
+                errors.append(f"{name} must be explicitly configured for production OTP")
+
+        from_email = settings.smtp_from_email.strip().casefold()
+        from_local, separator, from_domain = from_email.rpartition("@")
+        if (
+            not separator
+            or not from_local
+            or not from_domain
+            or from_email.count("@") != 1
+            or from_domain == "localhost"
+            or from_domain.endswith(".localhost")
+        ):
+            errors.append("SMTP_FROM_EMAIL must be a valid non-local production address")
+        if not settings.smtp_use_tls and not settings.smtp_use_ssl:
+            errors.append("SMTP_USE_TLS or SMTP_USE_SSL must be true in production")
+
+    if errors:
+        details = "\n".join(f"- {message}" for message in errors)
+        raise ProductionConfigurationError(
+            f"Unsafe production configuration; application startup aborted:\n{details}"
+        )
 
 
 @lru_cache

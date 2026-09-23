@@ -74,6 +74,11 @@ def add_workspace_member(
     user = repo.by_email(payload.email)
     if user is None or not user.is_active:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Active user not found")
+    if not user.email_verified:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "User must verify their email before workspace access can be granted",
+        )
     if user.id == access.user.id:
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_CONTENT,
@@ -147,6 +152,12 @@ def assign_client_member(
     db: Session = Depends(get_db),
 ) -> ClientMemberRead:
     repo = UserRepository(db)
+    user = db.get(User, user_id)
+    if user is None or not user.is_active or not user.email_verified:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "Verified active user required before client assignment",
+        )
     if repo.workspace_membership(user_id, access.workspace_id) is None:
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_CONTENT,

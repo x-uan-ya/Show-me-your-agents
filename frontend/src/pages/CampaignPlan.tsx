@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
-import { api, isAbortError } from "../api/client";
+import { api, isAbortError, isRateLimitError } from "../api/client";
 import { useOptionalAuth } from "../auth/AuthContext";
 import { CAMPAIGN_CALENDAR_UPDATED_EVENT } from "../utils/campaignColors";
 import { CustomerMessageGapCard } from "../components/CustomerMessageGapCard";
@@ -412,7 +412,9 @@ export function CampaignPlan({
       // Preserve the evidence-based local draft when analysis is unavailable.
       console.error("Campaign gap analysis failed", error);
       setGenerationError(
-        "Live Customer-Message Gap analysis could not be completed. The evidence-based local campaign draft is shown below.",
+        isRateLimitError(error)
+          ? "AI analysis usage is temporarily limited. Please wait before running another analysis."
+          : "Live Customer-Message Gap analysis could not be completed. The evidence-based local campaign draft is shown below.",
       );
       setGenerationStatus("error");
       if (analysisController.current === controller) {
@@ -455,7 +457,9 @@ export function CampaignPlan({
       if (controller.signal.aborted || isAbortError(error)) return;
       console.error("Backend campaign generation failed", error);
       setGenerationError(
-        "The backend could not generate and save the campaign. Check the backend connection and retry.",
+        isRateLimitError(error)
+          ? "AI analysis usage is temporarily limited. Please wait before running another analysis."
+          : "The backend could not generate and save the campaign. Check the backend connection and retry.",
       );
       setGenerationStatus("error");
     } finally {

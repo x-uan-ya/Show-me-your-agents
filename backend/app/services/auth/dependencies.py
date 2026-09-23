@@ -54,6 +54,7 @@ def get_current_user(
     if (
         user is None
         or not user.is_active
+        or not user.email_verified
         or user.session_version != session_version
     ):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid or expired session")

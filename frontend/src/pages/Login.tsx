@@ -1,10 +1,51 @@
 import { useEffect, useState, type FormEvent } from "react";
 
-import { api } from "../api/client";
+import { api, isRateLimitError } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
 
 export type AuthMode = "login" | "register";
 type LoginFlow = "password" | "email-request" | "email-verify" | "reset-request" | "reset-verify";
+type RegistrationStep = "details" | "verify";
+
+const PENDING_REGISTRATION_STORAGE_KEY = "campaign-intelligence:pending-registration";
+
+interface PendingRegistrationState {
+  email: string;
+  verificationToken: string;
+  resendAvailableAt: number;
+}
+
+function readPendingRegistration(): PendingRegistrationState | null {
+  try {
+    const raw = window.sessionStorage.getItem(PENDING_REGISTRATION_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<PendingRegistrationState>;
+    if (
+      typeof parsed.email !== "string"
+      || typeof parsed.verificationToken !== "string"
+      || typeof parsed.resendAvailableAt !== "number"
+    ) return null;
+    return {
+      email: parsed.email,
+      verificationToken: parsed.verificationToken,
+      resendAvailableAt: parsed.resendAvailableAt,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function savePendingRegistration(state: PendingRegistrationState) {
+  window.sessionStorage.setItem(PENDING_REGISTRATION_STORAGE_KEY, JSON.stringify(state));
+}
+
+function clearPendingRegistration() {
+  window.sessionStorage.removeItem(PENDING_REGISTRATION_STORAGE_KEY);
+}
+
+function secondsUntil(timestamp: number): number {
+  return Math.max(0, Math.ceil((timestamp - Date.now()) / 1000));
+}
 
 interface Props {
   mode: AuthMode;
@@ -42,12 +83,25 @@ const FLOW_COPY: Record<LoginFlow, { kicker: string; title: string; description:
 
 export function AuthDialog({ mode, onModeChange, onClose }: Props) {
   const { login, loginWithEmailCode, register } = useAuth();
+  const [initialPendingRegistration] = useState(readPendingRegistration);
+  const [registrationStep, setRegistrationStep] = useState<RegistrationStep>(
+    initialPendingRegistration ? "verify" : "details",
+  );
   const [loginFlow, setLoginFlow] = useState<LoginFlow>("password");
   const [displayName, setDisplayName] = useState("");
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(initialPendingRegistration?.email ?? "");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [code, setCode] = useState("");
+  const [registrationToken, setRegistrationToken] = useState(
+    initialPendingRegistration?.verificationToken ?? "",
+  );
+  const [resendAvailableAt, setResendAvailableAt] = useState(
+    initialPendingRegistration?.resendAvailableAt ?? 0,
+  );
+  const [resendSeconds, setResendSeconds] = useState(() =>
+    secondsUntil(initialPendingRegistration?.resendAvailableAt ?? 0)
+  );
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -63,6 +117,14 @@ export function AuthDialog({ mode, onModeChange, onClose }: Props) {
       document.body.classList.remove("auth-dialog-open");
     };
   }, [onClose]);
+
+  useEffect(() => {
+    if (mode !== "register" || registrationStep !== "verify") return;
+    const updateCountdown = () => setResendSeconds(secondsUntil(resendAvailableAt));
+    updateCountdown();
+    const timer = window.setInterval(updateCountdown, 1_000);
+    return () => window.clearInterval(timer);
+  }, [mode, registrationStep, resendAvailableAt]);
 
   const clearSensitiveFields = () => {
     setPassword("");
@@ -85,11 +147,49 @@ export function AuthDialog({ mode, onModeChange, onClose }: Props) {
     setLoginFlow(nextFlow);
   };
 
+  const restartRegistration = () => {
+    clearPendingRegistration();
+    clearSensitiveFields();
+    setRegistrationToken("");
+    setRegistrationStep("details");
+    setEmail("");
+    setError(null);
+    setSuccess(null);
+  };
+
+  const resendRegistrationCode = async () => {
+    if (submitting || resendSeconds > 0 || !registrationToken) return;
+    setSubmitting(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      const result = await api.resendRegistrationOtp(email, registrationToken);
+      const nextAvailableAt = Date.now() + result.resend_after_seconds * 1_000;
+      setResendAvailableAt(nextAvailableAt);
+      setResendSeconds(result.resend_after_seconds);
+      savePendingRegistration({
+        email,
+        verificationToken: registrationToken,
+        resendAvailableAt: nextAvailableAt,
+      });
+      setSuccess(result.message);
+    } catch (reason) {
+      setError(
+        isRateLimitError(reason)
+          ? "Too many verification code requests. Please try again later."
+          : "We couldn't resend the verification code. Please try again.",
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     if (submitting) return;
     if (
-      (mode === "register" || loginFlow === "reset-verify")
+      ((mode === "register" && registrationStep === "details")
+        || loginFlow === "reset-verify")
       && password !== confirmPassword
     ) {
       setError("Passwords do not match.");
@@ -101,11 +201,31 @@ export function AuthDialog({ mode, onModeChange, onClose }: Props) {
     setSuccess(null);
     try {
       if (mode === "register") {
-        await register(displayName, email, password);
-        clearSensitiveFields();
-        setLoginFlow("password");
-        onModeChange("login");
-        setSuccess("Your workspace account is ready. Sign in to continue.");
+        if (registrationStep === "details") {
+          const result = await register(displayName, email, password);
+          clearSensitiveFields();
+          setEmail(result.email);
+          setRegistrationToken(result.verification_token);
+          setRegistrationStep("verify");
+          const nextAvailableAt = Date.now() + result.resend_after_seconds * 1_000;
+          setResendAvailableAt(nextAvailableAt);
+          setResendSeconds(result.resend_after_seconds);
+          savePendingRegistration({
+            email: result.email,
+            verificationToken: result.verification_token,
+            resendAvailableAt: nextAvailableAt,
+          });
+          setSuccess(result.message);
+        } else {
+          const result = await api.verifyRegistrationEmail(email, code, registrationToken);
+          clearPendingRegistration();
+          clearSensitiveFields();
+          setRegistrationToken("");
+          setRegistrationStep("details");
+          setLoginFlow("password");
+          onModeChange("login");
+          setSuccess(result.message);
+        }
       } else if (loginFlow === "password") {
         await login(email, password);
         window.location.hash = "#/dashboard";
@@ -128,8 +248,22 @@ export function AuthDialog({ mode, onModeChange, onClose }: Props) {
       }
     } catch (reason) {
       const message = reason instanceof Error ? reason.message : "";
-      if (mode === "register" && message.toLowerCase().includes("already exists")) {
+      if (isRateLimitError(reason)) {
+        if (mode === "register" && registrationStep === "details") {
+          setError("Too many registration attempts. Please try again later.");
+        } else if (mode === "login" && loginFlow === "password") {
+          setError("Too many sign-in attempts. Please wait a few minutes and try again.");
+        } else {
+          setError("Too many verification code requests. Please try again later.");
+        }
+      } else if (
+        mode === "register"
+        && registrationStep === "details"
+        && message.toLowerCase().includes("already exists")
+      ) {
         setError("An account with this email already exists. Try signing in instead.");
+      } else if (mode === "register" && registrationStep === "verify") {
+        setError("That verification code is invalid or has expired.");
       } else if (mode === "register") {
         setError("We couldn't create your account. Please try again.");
       } else if (loginFlow === "password") {
@@ -145,10 +279,13 @@ export function AuthDialog({ mode, onModeChange, onClose }: Props) {
   };
 
   const flowCopy = FLOW_COPY[loginFlow];
-  const verificationStep = loginFlow === "email-verify" || loginFlow === "reset-verify";
+  const registrationVerification = mode === "register" && registrationStep === "verify";
+  const verificationStep = registrationVerification
+    || loginFlow === "email-verify"
+    || loginFlow === "reset-verify";
   const passwordResetStep = loginFlow === "reset-verify";
   const buttonLabel = mode === "register"
-    ? "Create account"
+    ? registrationVerification ? "Verify email" : "Continue"
     : loginFlow === "password"
       ? "Sign in to workspace"
       : loginFlow === "email-request" || loginFlow === "reset-request"
@@ -192,13 +329,27 @@ export function AuthDialog({ mode, onModeChange, onClose }: Props) {
           </div>
 
           <header className="auth-heading">
-            <span className="landing-kicker">{mode === "register" ? "Start your workspace" : flowCopy.kicker}</span>
-            <h1 id="auth-title">{mode === "register" ? "Create your agency account" : flowCopy.title}</h1>
-            <p>{mode === "register" ? "Use your work email. You can add your first client after signing in." : flowCopy.description}</p>
+            <span className="landing-kicker">
+              {registrationVerification
+                ? "Check your inbox"
+                : mode === "register" ? "Start your workspace" : flowCopy.kicker}
+            </span>
+            <h1 id="auth-title">
+              {registrationVerification
+                ? "Verify your email"
+                : mode === "register" ? "Create your agency account" : flowCopy.title}
+            </h1>
+            <p>
+              {registrationVerification
+                ? "We sent a six-digit verification code to your email. It expires in 10 minutes."
+                : mode === "register"
+                  ? "Use your work email. Your workspace is created after verification."
+                  : flowCopy.description}
+            </p>
           </header>
 
           <form className="auth-form" onSubmit={(event) => void submit(event)}>
-            {mode === "register" && (
+            {mode === "register" && registrationStep === "details" && (
               <label>
                 Full name
                 <input type="text" autoComplete="name" minLength={2} required value={displayName} onChange={(event) => setDisplayName(event.target.value)} placeholder="Sarah Tan" />
@@ -217,7 +368,7 @@ export function AuthDialog({ mode, onModeChange, onClose }: Props) {
               />
             </label>
 
-            {mode === "login" && verificationStep && (
+            {verificationStep && (
               <label>
                 Verification code
                 <input
@@ -235,7 +386,9 @@ export function AuthDialog({ mode, onModeChange, onClose }: Props) {
               </label>
             )}
 
-            {(mode === "register" || loginFlow === "password" || passwordResetStep) && (
+            {((mode === "register" && registrationStep === "details")
+              || (mode === "login" && loginFlow === "password")
+              || passwordResetStep) && (
               <label>
                 {passwordResetStep ? "New password" : "Password"}
                 <input
@@ -249,7 +402,7 @@ export function AuthDialog({ mode, onModeChange, onClose }: Props) {
                 />
               </label>
             )}
-            {(mode === "register" || passwordResetStep) && (
+            {((mode === "register" && registrationStep === "details") || passwordResetStep) && (
               <label>
                 Confirm {passwordResetStep ? "new " : ""}password
                 <input type="password" autoComplete="new-password" minLength={8} required value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} placeholder="Repeat your password" />
@@ -268,6 +421,18 @@ export function AuthDialog({ mode, onModeChange, onClose }: Props) {
                 {verificationStep && (
                   <button type="button" onClick={() => selectLoginFlow(loginFlow === "email-verify" ? "email-request" : "reset-request")}>Request another code</button>
                 )}
+              </div>
+            )}
+            {registrationVerification && (
+              <div className="auth-inline-actions">
+                <button type="button" onClick={restartRegistration}>← Use a different email</button>
+                <button
+                  type="button"
+                  disabled={submitting || resendSeconds > 0}
+                  onClick={() => void resendRegistrationCode()}
+                >
+                  {resendSeconds > 0 ? `Resend code in ${resendSeconds}s` : "Resend verification code"}
+                </button>
               </div>
             )}
 

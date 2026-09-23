@@ -49,4 +49,6 @@ EXPOSE 8000
 
 # Secrets (e.g. LLM_GATEWAY_API_KEY) are provided at runtime via environment
 # variables, never baked into the image.
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Disable Uvicorn's implicit forwarded-header rewriting. The application only
+# consumes X-Forwarded-For from explicitly configured trusted proxy networks.
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--no-proxy-headers"]

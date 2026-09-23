@@ -9,13 +9,17 @@ import {
 } from "react";
 
 import { ACTIVE_WORKSPACE_STORAGE_KEY, api, isAbortError } from "../api/client";
-import type { CurrentUser } from "../types";
+import type { CurrentUser, RegistrationPending } from "../types";
 
 interface AuthState {
   currentUser: CurrentUser | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  register: (displayName: string, email: string, password: string) => Promise<void>;
+  register: (
+    displayName: string,
+    email: string,
+    password: string,
+  ) => Promise<RegistrationPending>;
   login: (email: string, password: string) => Promise<void>;
   loginWithEmailCode: (email: string, code: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -98,7 +102,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     email: string,
     password: string,
   ) => {
-    await api.register(displayName, email, password);
+    return api.register(displayName, email, password);
   }, []);
 
   const logout = useCallback(async () => {

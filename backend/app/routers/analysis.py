@@ -5,7 +5,7 @@ Engine over a client's dataset and returns evidence-backed behavioural insights.
 Customer understanding only: no campaign, message, calendar, or schedule output.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -31,7 +31,13 @@ from app.services.insight_engine.customer_engine import (
     ProviderFailureError,
 )
 from app.utils.confidence import confidence_label
-from app.services.auth.dependencies import require_client_access, require_client_write
+from app.services.auth.dependencies import (
+    AccessContext,
+    get_current_access,
+    require_client_access,
+    require_client_write,
+)
+from app.services.rate_limit import enforce_ai_action
 
 router = APIRouter(prefix="/clients", tags=["analysis"])
 
@@ -99,10 +105,14 @@ def latest_completed_analysis(
 def analyse_client_dataset(
     client_id: int,
     payload: AnalyseRequest,
+    request: Request,
     db: Session = Depends(get_db),
     provider: AIProvider = Depends(get_ai_provider),
+    access: AccessContext = Depends(get_current_access),
     _: Client = Depends(require_client_write),
 ) -> AnalyseResponse:
+    # The trusted workspace comes from validated membership, never request data.
+    enforce_ai_action(request, access)
     engine = CustomerInsightEngine(db, provider)
 
     try:

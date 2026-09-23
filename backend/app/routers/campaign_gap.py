@@ -1,6 +1,6 @@
 """Dataset 3 campaign parameters and customer-message gap API."""
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -27,6 +27,7 @@ from app.services.auth.dependencies import (
     get_current_access,
     require_client_write,
 )
+from app.services.rate_limit import enforce_ai_action
 
 router = APIRouter(tags=["campaign-gap"])
 
@@ -47,10 +48,13 @@ def campaign_parameters(
 def analyse_campaign_gap(
     client_id: int,
     payload: CampaignGapRequest,
+    request: Request,
     db: Session = Depends(get_db),
     provider: AIProvider = Depends(get_ai_provider),
+    access: AccessContext = Depends(get_current_access),
     _: Client = Depends(require_client_write),
 ) -> CampaignGapResponse:
+    enforce_ai_action(request, access)
     try:
         return CampaignGapService(db, provider).analyse(client_id, payload.campaign_id)
     except CampaignGapClientNotFoundError as exc:
@@ -73,10 +77,13 @@ def analyse_campaign_gap(
 def analyse_matching_campaign_gap(
     client_id: int,
     payload: CampaignGapAutoRequest,
+    request: Request,
     db: Session = Depends(get_db),
     provider: AIProvider = Depends(get_ai_provider),
+    access: AccessContext = Depends(get_current_access),
     _: Client = Depends(require_client_write),
 ) -> CampaignGapResponse:
+    enforce_ai_action(request, access)
     try:
         return CampaignGapService(db, provider).analyse_matching(
             client_id,

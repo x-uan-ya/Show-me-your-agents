@@ -207,10 +207,11 @@ and using Trial vs Retention works without a separate browser CORS setup.
 ### Create local demo users
 
 Authentication uses persistent database users. New users can register with a
-name, email and password from the public product homepage; each self-registered
-user becomes the admin of a new, isolated agency workspace. After
-setup, create the local admin, strategist and reviewer demo accounts from the
-`backend` directory:
+name, email and password from the public product homepage. The account remains
+untrusted until the user enters the single-use email verification code; only
+then is the new, isolated agency workspace and its admin membership created.
+After setup, create the local admin, strategist and reviewer demo accounts from
+the `backend` directory:
 
 ```bash
 .venv/bin/python -m app.scripts.seed_demo_users
@@ -221,9 +222,21 @@ The command securely prompts for a demo password (or reads
 It never writes the password into frontend source. Admin can access every client
 inside the active workspace only; strategist and reviewer are assigned to the
 first existing client when present. Workspace admins can then use **Team access**
-to add another registered email, assign a per-client role, or revoke access.
-Set a long random `AUTH_SECRET` and enable `AUTH_COOKIE_SECURE` for HTTPS outside
-local development, as shown in `backend/.env.example`.
+to add another registered and email-verified user, assign a per-client role, or
+revoke access.
+Production startup fails closed unless `AUTH_SECRET` is explicitly set to at
+least 32 random characters, `AUTH_COOKIE_SECURE=true`, and `CORS_ORIGINS` is an
+explicit allowlist without `*`. Production also requires SMTP OTP delivery with
+`SMTP_HOST`, `SMTP_USERNAME`, `SMTP_PASSWORD`, and a non-local
+`SMTP_FROM_EMAIL`. Development defaults remain available for localhost, as
+shown in `backend/.env.example`.
+
+Abuse protection is enabled by default: password login is limited per IP and
+normalized account, registration and OTP delivery are limited per IP/email,
+and every provider-backed AI action is limited per user and Workspace. The
+current limiter is intentionally process-local because the documented
+Lightsail deployment uses one container at `scale 1`; horizontal scaling must
+first move counters to a shared atomic store such as Redis.
 
 ### Email sign-in and password reset
 

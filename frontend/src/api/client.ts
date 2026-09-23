@@ -24,6 +24,8 @@ import type {
   MarketingBrief,
   MarketingBriefRecord,
   PersistedCampaign,
+  RegistrationOtpStatus,
+  RegistrationPending,
   UploadResponse,
   UserRole,
   WorkspaceMember,
@@ -43,6 +45,22 @@ const API_BASE_URL = apiBaseUrl(import.meta.env.VITE_API_BASE_URL);
 export const ACTIVE_WORKSPACE_STORAGE_KEY = "customer-intelligence:auth:workspace-id";
 
 const DEFAULT_TIMEOUT_MS = 60_000;
+
+export class ApiError extends Error {
+  readonly status: number;
+  readonly retryAfterSeconds: number | null;
+
+  constructor(message: string, status: number, retryAfterSeconds: number | null = null) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.retryAfterSeconds = retryAfterSeconds;
+  }
+}
+
+export function isRateLimitError(error: unknown): error is ApiError {
+  return error instanceof ApiError && error.status === 429;
+}
 
 function errorDetail(value: unknown): string | null {
   if (typeof value === "string") return value;
@@ -102,7 +120,15 @@ async function requestJson<T>(
       credentials: "include",
       signal: controller.signal,
     });
-    if (!response.ok) throw new Error(await parseError(response));
+    if (!response.ok) {
+      const retryAfter = response.headers.get("Retry-After");
+      const parsedRetryAfter = retryAfter ? Number.parseInt(retryAfter, 10) : Number.NaN;
+      throw new ApiError(
+        await parseError(response),
+        response.status,
+        Number.isFinite(parsedRetryAfter) && parsedRetryAfter > 0 ? parsedRetryAfter : null,
+      );
+    }
     if (response.status === 204) return undefined as T;
     return (await response.json()) as T;
   } catch (error) {
@@ -178,7 +204,7 @@ export const api = {
     email: string,
     password: string,
     signal?: AbortSignal,
-  ) => postJson<CurrentUser>(
+  ) => postJson<RegistrationPending>(
     "/auth/register",
     { display_name: displayName, email, password },
     signal,
@@ -189,6 +215,25 @@ export const api = {
     postJson<AuthMessage>("/auth/email-login/request", { email }, signal),
   loginWithEmailCode: (email: string, code: string, signal?: AbortSignal) =>
     postJson<CurrentUser>("/auth/email-login/verify", { email, code }, signal),
+  verifyRegistrationEmail: (
+    email: string,
+    code: string,
+    verificationToken: string,
+    signal?: AbortSignal,
+  ) => postJson<AuthMessage>(
+    "/auth/verify-registration-email",
+    { email, code, verification_token: verificationToken },
+    signal,
+  ),
+  resendRegistrationOtp: (
+    email: string,
+    verificationToken: string,
+    signal?: AbortSignal,
+  ) => postJson<RegistrationOtpStatus>(
+    "/auth/resend-registration-otp",
+    { email, verification_token: verificationToken },
+    signal,
+  ),
   requestPasswordResetCode: (email: string, signal?: AbortSignal) =>
     postJson<AuthMessage>("/auth/password-reset/request", { email }, signal),
   confirmPasswordReset: (

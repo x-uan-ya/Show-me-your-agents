@@ -11,11 +11,13 @@ from app.models.workspace import Workspace
 from app.services.auth.dependencies import AccessContext, get_current_access, get_current_user
 from app.services.ai.factory import get_ai_provider
 from app.services.ai.mock_provider import MockAIProvider
+from app.services.rate_limit import rate_limiter
 
 
 @pytest.fixture(autouse=True)
 def use_mock_ai_provider():
     """Never spend gateway credit or require credentials in automated tests."""
+    rate_limiter.reset()
     app.dependency_overrides[get_ai_provider] = lambda: MockAIProvider()
     # Existing business tests predate authentication. Run them as an admin so
     # they continue to exercise their original behaviour; dedicated auth tests
@@ -43,6 +45,7 @@ def use_mock_ai_provider():
     try:
         yield
     finally:
+        rate_limiter.reset()
         app.dependency_overrides.pop(get_ai_provider, None)
         app.dependency_overrides.pop(get_current_user, None)
         app.dependency_overrides.pop(get_current_access, None)

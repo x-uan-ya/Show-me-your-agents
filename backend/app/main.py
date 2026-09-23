@@ -13,7 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from app.config import get_settings
+from app.config import get_settings, validate_production_settings
 from app.database import init_db
 from app.routers import (
     analysis_router,
@@ -36,6 +36,9 @@ settings = get_settings()
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    # Production must fail closed before database initialisation or request
+    # handling. Development-only defaults are never silently accepted here.
+    validate_production_settings(settings)
     # Create tables on startup (SQLite dev store).
     init_db()
     yield

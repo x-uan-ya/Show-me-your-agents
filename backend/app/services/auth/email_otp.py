@@ -48,7 +48,6 @@ class EmailOtpService:
         )
         if (
             latest is not None
-            and latest.consumed_at is None
             and latest.created_at > now - timedelta(seconds=self._settings.email_otp_resend_seconds)
         ):
             return None

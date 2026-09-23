@@ -64,6 +64,16 @@ def test_legacy_database_is_scoped_without_losing_records():
             for column in inspect(connection).get_columns("client_memberships")
         }
         assert "session_version" in user_columns
+        assert {
+            "email_verified",
+            "pending_workspace_name",
+            "registration_token_hash",
+        }.issubset(user_columns)
+        # Existing identities remain trusted instead of being locked out by
+        # the compatibility migration.
+        assert connection.scalar(
+            text("SELECT email_verified FROM users WHERE id = 1")
+        ) == 1
         assert "workspace_id" in client_columns
         assert {"role", "is_active"}.issubset(membership_columns)
         assert connection.scalar(text("SELECT count(*) FROM clients")) == 1
@@ -121,3 +131,31 @@ def test_partial_migration_does_not_add_existing_tenant_users_to_legacy_workspac
         assert connection.scalar(
             text("SELECT workspace_id FROM clients WHERE id = 7")
         ) == 6
+
+
+def test_restart_migration_does_not_trust_a_pending_registration():
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(bind=engine)
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                "INSERT INTO users "
+                "(id, email, password_hash, display_name, role, is_active, email_verified) "
+                "VALUES (1, 'pending@example.test', 'hash', 'Pending', 'admin', 1, 0)"
+            )
+        )
+
+    # init_db invokes this on every application restart.
+    migrate_sqlite_multitenancy(engine)
+    migrate_sqlite_multitenancy(engine)
+
+    with engine.connect() as connection:
+        assert connection.scalar(
+            text(
+                "SELECT count(*) FROM workspace_memberships "
+                "WHERE user_id = 1"
+            )
+        ) == 0
+        assert connection.scalar(
+            text("SELECT email_verified FROM users WHERE id = 1")
+        ) == 0

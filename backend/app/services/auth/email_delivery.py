@@ -11,7 +11,7 @@ from typing import Literal
 
 from app.config import get_settings
 
-OtpPurpose = Literal["login", "password_reset"]
+OtpPurpose = Literal["registration", "login", "password_reset"]
 
 logger = logging.getLogger(__name__)
 
@@ -48,12 +48,20 @@ def _deliver_smtp(message: EmailMessage) -> None:
 
 def send_otp_email(recipient: str, code: str, purpose: OtpPurpose) -> None:
     settings = get_settings()
-    action = "sign in" if purpose == "login" else "reset your password"
-    subject = (
-        "Your Campaign Intelligence sign-in code"
-        if purpose == "login"
-        else "Reset your Campaign Intelligence password"
-    )
+    action, subject = {
+        "registration": (
+            "verify your email and finish creating your account",
+            "Verify your Campaign Intelligence email",
+        ),
+        "login": (
+            "sign in",
+            "Your Campaign Intelligence sign-in code",
+        ),
+        "password_reset": (
+            "reset your password",
+            "Reset your Campaign Intelligence password",
+        ),
+    }[purpose]
 
     if settings.email_delivery == "console":
         if settings.environment.lower() not in {"development", "dev", "test"}:

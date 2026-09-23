@@ -41,6 +41,27 @@ class AuthMessage(BaseModel):
     message: str
 
 
+class RegistrationVerificationRequest(EmailOtpVerifyRequest):
+    verification_token: str = Field(min_length=32, max_length=256)
+
+
+class RegistrationResendRequest(EmailRequest):
+    verification_token: str = Field(min_length=32, max_length=256)
+
+
+class RegistrationPendingRead(BaseModel):
+    verification_required: bool = True
+    email: str
+    verification_token: str
+    resend_after_seconds: int
+    message: str
+
+
+class RegistrationOtpStatus(BaseModel):
+    message: str
+    resend_after_seconds: int
+
+
 class RegisterRequest(LoginRequest):
     display_name: str = Field(min_length=2, max_length=128)
     workspace_name: str | None = Field(default=None, min_length=2, max_length=256)

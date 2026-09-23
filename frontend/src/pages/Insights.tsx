@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { api, isAbortError } from "../api/client";
+import { api, isAbortError, isRateLimitError } from "../api/client";
 import { ClientSelector } from "../components/ClientSelector";
 import { EvidenceDrawer } from "../components/EvidenceDrawer";
 import { InsightCard } from "../components/InsightCard";
@@ -268,7 +268,11 @@ export function Insights({
       });
     } catch (reason) {
       if (!isAbortError(reason)) {
-        setError((reason as Error).message);
+        setError(
+          isRateLimitError(reason)
+            ? "AI analysis usage is temporarily limited. Please wait before running another analysis."
+            : (reason as Error).message,
+        );
         setStatus(insights.length > 0 ? "ready" : "error");
       }
     } finally {

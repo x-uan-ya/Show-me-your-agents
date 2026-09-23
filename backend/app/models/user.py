@@ -17,6 +17,14 @@ class User(Base):
     display_name: Mapped[str] = mapped_column(String(128), nullable=False)
     role: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    # Email ownership and administrative enablement are separate concerns.
+    # Existing users are migrated as verified; new public registrations set
+    # this to false until the registration OTP is consumed successfully.
+    email_verified: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default="1"
+    )
+    pending_workspace_name: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    registration_token_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
     session_version: Mapped[int] = mapped_column(
         Integer, nullable=False, default=1, server_default="1"
     )

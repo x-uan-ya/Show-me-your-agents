@@ -168,7 +168,7 @@ export function TeamAccess() {
             <section className="surface-card p-5 sm:p-6">
               <p className="section-kicker">Workspace membership</p>
               <h2 className="mt-1 text-xl font-semibold text-white">Add an existing account</h2>
-              <p className="mt-2 text-sm text-slate-400">The teammate must register their email first. Viewer, strategist and reviewer access remains client-specific; workspace admins can access every client in this workspace.</p>
+              <p className="mt-2 text-sm text-slate-400">The teammate must register and verify their email first. Viewer, strategist and reviewer access remains client-specific; workspace admins can access every client in this workspace.</p>
               <form className="mt-5 grid gap-3 md:grid-cols-[minmax(0,1fr)_11rem_auto]" onSubmit={(event) => void addMember(event)}>
                 <input aria-label="Member email" type="email" required placeholder="teammate@agency.com" value={email} onChange={(event) => setEmail(event.target.value)} />
                 <select aria-label="Workspace role" value={workspaceRole} onChange={(event) => setWorkspaceRole(event.target.value as UserRole)}>
