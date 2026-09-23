@@ -31,9 +31,68 @@ from app.services.insight_engine.customer_engine import (
     ProviderFailureError,
 )
 from app.utils.confidence import confidence_label
-from app.services.auth.dependencies import require_client_write
+from app.services.auth.dependencies import require_client_access, require_client_write
 
 router = APIRouter(prefix="/clients", tags=["analysis"])
+
+
+def _analysis_response(repo: AnalysisRepository, run) -> AnalyseResponse:
+    """Serialize a completed run with the exact evidence shape used by analysis."""
+
+    insight_reads: list[InsightRead] = []
+    for insight in repo.insights_for_run(run.id):
+        evidence = [
+            EvidenceRead(
+                signal_id=item.signal_id,
+                excerpt=item.excerpt,
+                relevance_score=item.relevance_score,
+            )
+            for item in insight.evidence
+        ]
+        insight_reads.append(
+            InsightRead(
+                id=insight.id,
+                client_id=insight.client_id,
+                analysis_run_id=insight.analysis_run_id,
+                title=insight.title,
+                summary=insight.summary,
+                category=insight.category,
+                confidence=insight.confidence,
+                confidence_label=confidence_label(insight.confidence),
+                evidence_count=insight.evidence_count,
+                reasoning_summary=insight.reasoning_summary,
+                evidence=evidence,
+            )
+        )
+
+    return AnalyseResponse(
+        analysis_run=AnalysisRunRead(
+            id=run.id,
+            client_id=run.client_id,
+            dataset_id=run.dataset_id,
+            status=run.status,
+            model_provider=run.model_provider,
+            model_name=run.model_name,
+            started_at=run.started_at,
+            completed_at=run.completed_at,
+            error_message=run.error_message,
+        ),
+        insights=insight_reads,
+        rejected=[],
+    )
+
+
+@router.get("/{client_id}/analyses/latest", response_model=AnalyseResponse | None)
+def latest_completed_analysis(
+    client_id: int,
+    db: Session = Depends(get_db),
+    _: Client = Depends(require_client_access),
+) -> AnalyseResponse | None:
+    """Return the client's latest completed analysis, including persisted evidence."""
+
+    repo = AnalysisRepository(db)
+    run = repo.latest_completed_run(client_id)
+    return _analysis_response(repo, run) if run else None
 
 
 @router.post("/{client_id}/analyse", response_model=AnalyseResponse)
@@ -68,46 +127,6 @@ def analyse_client_dataset(
             status.HTTP_502_BAD_GATEWAY, f"AI provider failed: {exc}"
         ) from exc
 
-    repo = AnalysisRepository(db)
-    insight_reads: list[InsightRead] = []
-    for insight in output.insights:
-        evidence = [
-            EvidenceRead(
-                signal_id=e.signal_id,
-                excerpt=e.excerpt,
-                relevance_score=e.relevance_score,
-            )
-            for e in repo.evidence_for_insight(insight.id)
-        ]
-        insight_reads.append(
-            InsightRead(
-                id=insight.id,
-                client_id=insight.client_id,
-                analysis_run_id=insight.analysis_run_id,
-                title=insight.title,
-                summary=insight.summary,
-                category=insight.category,
-                confidence=insight.confidence,
-                confidence_label=confidence_label(insight.confidence),
-                evidence_count=insight.evidence_count,
-                reasoning_summary=insight.reasoning_summary,
-                evidence=evidence,
-            )
-        )
-
-    run = output.run
-    return AnalyseResponse(
-        analysis_run=AnalysisRunRead(
-            id=run.id,
-            client_id=run.client_id,
-            dataset_id=run.dataset_id,
-            status=run.status,
-            model_provider=run.model_provider,
-            model_name=run.model_name,
-            started_at=run.started_at,
-            completed_at=run.completed_at,
-            error_message=run.error_message,
-        ),
-        insights=insight_reads,
-        rejected=output.rejected,
-    )
+    response = _analysis_response(AnalysisRepository(db), output.run)
+    response.rejected = output.rejected
+    return response

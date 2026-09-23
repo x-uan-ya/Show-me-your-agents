@@ -6,8 +6,10 @@ import type { AppView, CampaignCalendarItem, Client } from "../types";
 import { CAMPAIGN_CALENDAR_UPDATED_EVENT, clientActivityColorStyle } from "../utils/campaignColors";
 
 interface Props {
+  selectedClientId?: number | null;
   onNavigate: (view: AppView) => void;
   onClientDeleted?: (clientId: number) => void;
+  onWorkflowChanged?: () => void;
 }
 
 interface CalendarMonth {
@@ -83,7 +85,12 @@ function statusTone(status: CampaignCalendarItem["status"]): string {
   return "is-draft";
 }
 
-export function CampaignCalendar({ onNavigate, onClientDeleted }: Props) {
+export function CampaignCalendar({
+  selectedClientId = null,
+  onNavigate,
+  onClientDeleted,
+  onWorkflowChanged,
+}: Props) {
   const auth = useOptionalAuth();
   const canManageClients = !auth?.currentUser || auth.currentUser.role === "admin";
   const canEditSchedule = !auth?.currentUser
@@ -95,7 +102,9 @@ export function CampaignCalendar({ onNavigate, onClientDeleted }: Props) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [reloadVersion, setReloadVersion] = useState(0);
-  const [clientFilter, setClientFilter] = useState("all");
+  const [clientFilter, setClientFilter] = useState(
+    selectedClientId === null ? "all" : String(selectedClientId),
+  );
   const [channelFilter, setChannelFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [visibleChannels, setVisibleChannels] = useState<string[]>([]);
@@ -119,7 +128,6 @@ export function CampaignCalendar({ onNavigate, onClientDeleted }: Props) {
       },
       (reason: unknown) => {
         if (controller.signal.aborted || isAbortError(reason)) return;
-        setItems([]);
         setError("Unable to load campaign schedule.");
         setLoading(false);
       },
@@ -127,6 +135,10 @@ export function CampaignCalendar({ onNavigate, onClientDeleted }: Props) {
 
     return () => controller.abort();
   }, [reloadVersion]);
+
+  useEffect(() => {
+    setClientFilter(selectedClientId === null ? "all" : String(selectedClientId));
+  }, [selectedClientId]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -233,6 +245,7 @@ export function CampaignCalendar({ onNavigate, onClientDeleted }: Props) {
       setItems((current) => current.map((candidate) =>
         candidate.id === updated.id ? updated : candidate,
       ));
+      onWorkflowChanged?.();
       window.dispatchEvent(new Event(CAMPAIGN_CALENDAR_UPDATED_EVENT));
     } catch (reason) {
       if (!isAbortError(reason)) setStatusError("Unable to update the simulated publishing status.");
@@ -251,6 +264,7 @@ export function CampaignCalendar({ onNavigate, onClientDeleted }: Props) {
       setItems((current) => current.filter((item) => item.client_id !== client.id));
       if (clientFilter === String(client.id)) setClientFilter("all");
       onClientDeleted?.(client.id);
+      onWorkflowChanged?.();
       window.dispatchEvent(new Event(CAMPAIGN_CALENDAR_UPDATED_EVENT));
     } catch (reason) {
       if (!isAbortError(reason)) setClientError("Unable to delete this customer and its stored data.");
@@ -318,7 +332,7 @@ export function CampaignCalendar({ onNavigate, onClientDeleted }: Props) {
               <button type="button" className="secondary-button mt-4" onClick={() => setReloadVersion((value) => value + 1)}>Retry</button>
             </div>
           )}
-          {!loading && !error && (
+          {!loading && (!error || items.length > 0) && (
             <div className="overflow-x-auto">
               <table className="campaign-records-table">
                 <thead>

@@ -275,6 +275,10 @@ def test_assigned_user_can_access_only_assigned_client(auth_env):
     assert _login(client, "strategist@example.test").status_code == 200
     assert client.get(f"/api/clients/{ids['a']}").status_code == 200
     assert client.get(f"/api/clients/{ids['b']}").status_code == 404
+    assert client.get(f"/api/clients/{ids['a']}/workflow-status").status_code == 200
+    assert client.get(f"/api/clients/{ids['b']}/workflow-status").status_code == 404
+    assert client.get(f"/api/clients/{ids['a']}/analyses/latest").status_code == 200
+    assert client.get(f"/api/clients/{ids['b']}/analyses/latest").status_code == 404
     listed = client.get("/api/clients")
     assert [item["id"] for item in listed.json()] == [ids["a"]]
 

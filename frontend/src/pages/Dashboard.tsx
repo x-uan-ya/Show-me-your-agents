@@ -3,12 +3,13 @@ import { useEffect, useState } from "react";
 import { api, isAbortError } from "../api/client";
 import { StatusBadge } from "../components/StatusBadge";
 import { useHealthCheck } from "../hooks/useHealthCheck";
-import type { AppView, InsightTypeInfo } from "../types";
+import type { AppView, InsightTypeInfo, WorkflowStatus } from "../types";
 
 interface Props {
   selectedClientId: number | null;
   selectedClientName?: string;
   hasInsights?: boolean;
+  workflowStatus?: WorkflowStatus | null;
   onNavigate: (view: AppView) => void;
 }
 
@@ -76,10 +77,23 @@ const WORKFLOW: Array<{
   },
 ];
 
-export function Dashboard({ selectedClientId, selectedClientName, hasInsights = false, onNavigate }: Props) {
+export function Dashboard({ selectedClientId, selectedClientName, hasInsights = false, workflowStatus = null, onNavigate }: Props) {
   const connection = useHealthCheck();
   const [taxonomy, setTaxonomy] = useState<InsightTypeInfo[]>([]);
   const [taxonomyState, setTaxonomyState] = useState<TaxonomyState>("loading");
+  const recommended = !selectedClientId
+    ? { label: "Select or add a client", view: "import" as AppView }
+    : workflowStatus?.recommended_next_step === "brief"
+      ? { label: "Complete the marketing brief", view: "import" as AppView }
+      : workflowStatus?.recommended_next_step === "data"
+        ? { label: "Upload customer feedback", view: "import" as AppView }
+        : workflowStatus?.recommended_next_step === "analysis"
+          ? { label: "Run customer feedback analysis", view: "insights" as AppView }
+          : workflowStatus?.recommended_next_step === "campaign"
+            ? { label: "Create a campaign", view: "campaign-plan" as AppView }
+            : workflowStatus?.recommended_next_step === "approval"
+              ? { label: "Review and approve the campaign", view: "campaign-plan" as AppView }
+              : { label: "Review the campaign calendar", view: "campaign-calendar" as AppView };
 
   useEffect(() => {
     const controller = new AbortController();
@@ -115,10 +129,10 @@ export function Dashboard({ selectedClientId, selectedClientName, hasInsights = 
               <div className="mt-7 flex flex-wrap items-center gap-3">
                 <button
                   type="button"
-                  onClick={() => onNavigate(selectedClientId ? "insights" : "import")}
+                  onClick={() => onNavigate(recommended.view)}
                   className="primary-button"
                 >
-                  {selectedClientId ? "Continue analysis" : "Create your first workspace"}
+                  {selectedClientId ? "Continue workflow" : "Create your first workspace"}
                   <span aria-hidden>→</span>
                 </button>
               </div>
@@ -204,20 +218,20 @@ export function Dashboard({ selectedClientId, selectedClientName, hasInsights = 
               className="next-step-panel cursor-pointer"
               role="link"
               tabIndex={0}
-              onClick={() => onNavigate(selectedClientId ? "insights" : "import")}
+              onClick={() => onNavigate(recommended.view)}
               onKeyDown={(event) => {
                 if (event.key === "Enter" || event.key === " ") {
                   event.preventDefault();
-                  onNavigate(selectedClientId ? "insights" : "import");
+                  onNavigate(recommended.view);
                 }
               }}
-              aria-label={selectedClientId ? "Choose a ready dataset" : "Select or add an SME client"}
+              aria-label={recommended.label}
             >
               <span className="next-step-icon" aria-hidden="true">↗</span>
               <div>
                 <small>Recommended next step</small>
                 <strong>
-                  {selectedClientId ? "Choose a ready dataset" : "Select or add an SME client"}
+                  {recommended.label}
                 </strong>
               </div>
             </div>

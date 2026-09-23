@@ -160,7 +160,7 @@ function renderPlan(insights: Insight[] = [insight]) {
 }
 
 async function generate(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(screen.getByRole("button", { name: "Generate campaign plan" }));
+  await user.click(await screen.findByRole("button", { name: "Generate campaign plan" }));
   await screen.findByText("Seven-day evidence-led sequence");
 }
 
@@ -235,20 +235,20 @@ describe("CampaignPlan", () => {
     expect(api.analyseCampaignGapAutomatically).not.toHaveBeenCalled();
   });
 
-  it("recognises a selected client with a complete brief and usable insights", () => {
+  it("recognises a selected client with a complete brief and usable insights", async () => {
     renderPlan();
     expect(screen.queryByText("Choose an SME client first")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Generate campaign plan" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Generate campaign plan" })).toBeInTheDocument();
   });
 
-  it("requires evidence before generating a plan", () => {
+  it("requires evidence before generating a plan", async () => {
     renderPlan([]);
-    expect(screen.getByText("Customer evidence is required")).toBeInTheDocument();
+    expect(await screen.findByText("Customer evidence is required")).toBeInTheDocument();
   });
 
-  it("requires evidence belonging to the active client", () => {
+  it("requires evidence belonging to the active client", async () => {
     renderPlan([{ ...insight, client_id: 2 }]);
-    expect(screen.getByText("Customer evidence is required")).toBeInTheDocument();
+    expect(await screen.findByText("Customer evidence is required")).toBeInTheDocument();
     expect(api.analyseCampaignGapAutomatically).not.toHaveBeenCalled();
   });
 
@@ -305,7 +305,7 @@ describe("CampaignPlan", () => {
   });
 
   it("retrieves a saved campaign and content items after in-memory insights are gone", async () => {
-    vi.mocked(api.listCampaigns).mockResolvedValue([persistedCampaign()]);
+    vi.mocked(api.listCampaigns).mockResolvedValueOnce([persistedCampaign()]);
     renderPlan([]);
 
     const stored = within(await screen.findByRole("article", { name: "Saved campaign #501" }));
@@ -322,7 +322,7 @@ describe("CampaignPlan", () => {
     const user = userEvent.setup();
     renderPlan();
 
-    await user.click(screen.getByRole("button", { name: "Generate campaign plan" }));
+    await user.click(await screen.findByRole("button", { name: "Generate campaign plan" }));
     expect(screen.getByRole("status")).toHaveTextContent("Generating campaign plan");
     expect(screen.queryByRole("button", { name: "Generate campaign plan" })).not.toBeInTheDocument();
 
@@ -371,7 +371,7 @@ describe("CampaignPlan", () => {
     const user = userEvent.setup();
     renderPlan([insight, strongerInsight]);
 
-    expect(screen.getByText((_, element) =>
+    expect(await screen.findByText((_, element) =>
       element?.tagName === "P" &&
       element.textContent?.includes("Strongest planning anchor: Trusted automation wins") === true,
     )).toBeInTheDocument();
@@ -566,7 +566,7 @@ describe("CampaignPlan", () => {
     vi.mocked(api.analyseCampaignGapAutomatically).mockReturnValueOnce(analysis.promise);
     const user = userEvent.setup();
     const { rerender } = renderPlan();
-    await user.click(screen.getByRole("button", { name: "Generate campaign plan" }));
+    await user.click(await screen.findByRole("button", { name: "Generate campaign plan" }));
     const requestSignal = vi.mocked(api.analyseCampaignGapAutomatically).mock.calls[0][2]!;
     expect(requestSignal.aborted).toBe(false);
     rerender(<CampaignPlan clientId={2} brief={brief} insights={[{ ...insight, client_id: 2 }]} onNavigate={vi.fn()} />);
@@ -600,7 +600,7 @@ describe("CampaignPlan", () => {
     vi.mocked(api.analyseCampaignGapAutomatically).mockReturnValueOnce(analysis.promise);
     const user = userEvent.setup();
     const { unmount } = renderPlan();
-    await user.click(screen.getByRole("button", { name: "Generate campaign plan" }));
+    await user.click(await screen.findByRole("button", { name: "Generate campaign plan" }));
     const requestSignal = vi.mocked(api.analyseCampaignGapAutomatically).mock.calls[0][2]!;
     unmount();
     expect(requestSignal.aborted).toBe(true);

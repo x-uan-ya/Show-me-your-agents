@@ -12,11 +12,13 @@ import {
   CATEGORY_LABELS,
   INSIGHT_CATEGORIES,
   type AnalysisRun,
+  type AnalyseResponse,
   type AppView,
   type CustomerSignal,
   type Dataset,
   type Insight,
   type InsightCategory,
+  type WorkflowStatus,
 } from "../types";
 import { looksSynthetic } from "../utils/format";
 
@@ -24,10 +26,15 @@ interface Props {
   clientId: number | null;
   datasetId: number | null;
   initialInsights: Insight[];
+  initialAnalysisRun?: AnalysisRun | null;
+  restoreStatus?: "idle" | "loading" | "ready" | "error";
+  restoreError?: string | null;
+  workflowStatus?: WorkflowStatus | null;
   onClientChange: (id: number | null) => void;
   onDatasetChange: (id: number | null) => void;
   onNavigate: (view: AppView) => void;
-  onAnalysisComplete: (insights: Insight[]) => void;
+  onRetryRestore?: () => void;
+  onAnalysisComplete: (response: AnalyseResponse) => void;
 }
 
 type Status = "idle" | "loading" | "ready" | "error";
@@ -59,16 +66,23 @@ export function Insights({
   clientId,
   datasetId,
   initialInsights,
+  initialAnalysisRun = null,
+  restoreStatus = "ready",
+  restoreError = null,
+  workflowStatus = null,
   onClientChange,
   onDatasetChange,
   onNavigate,
+  onRetryRestore,
   onAnalysisComplete,
 }: Props) {
   const [datasets, setDatasets] = useState<Dataset[]>([]);
   const [datasetStatus, setDatasetStatus] = useState<DatasetStatus>("idle");
   const [datasetError, setDatasetError] = useState<string | null>(null);
+  const [datasetReloadVersion, setDatasetReloadVersion] = useState(0);
 
   const [status, setStatus] = useState<Status>(initialInsights.length > 0 ? "ready" : "idle");
+  const [isAnalysing, setIsAnalysing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [evidenceWarning, setEvidenceWarning] = useState<string | null>(null);
   const [insights, setInsights] = useState<Insight[]>(initialInsights);
@@ -98,16 +112,8 @@ export function Insights({
   useEffect(() => {
     datasetController.current?.abort();
     analysisController.current?.abort();
-    const canRestore = clientId !== null && initialInsights.length > 0 &&
-      initialInsights.every((insight) => insight.client_id === clientId);
-    if (canRestore) {
-      setStatus("ready");
-      setInsights(initialInsights);
-      setError(null);
-      setEvidenceWarning(null);
-    } else {
-      clearResults();
-    }
+    clearResults();
+    setIsAnalysing(false);
     setDatasets([]);
     setDatasetError(null);
 
@@ -130,14 +136,11 @@ export function Insights({
           !items.some((item) => item.id === datasetId && isReady(item))
         ) {
           onDatasetChange(null);
-        }
-        if (canRestore) {
-          void api.listSignals(clientId, controller.signal).then((signals) => {
-            if (controller.signal.aborted) return;
-            const map = new Map<number, CustomerSignal>();
-            signals.forEach((signal) => map.set(signal.id, signal));
-            setSignalsById(map);
-          }).catch(() => undefined);
+        } else if (datasetId === null) {
+          const newestReady = items
+            .filter(isReady)
+            .sort((left, right) => right.id - left.id)[0];
+          if (newestReady) onDatasetChange(newestReady.id);
         }
       })
       .catch((reason) => {
@@ -149,7 +152,47 @@ export function Insights({
     return () => controller.abort();
     // Reload only when the shared client context changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clientId]);
+  }, [clientId, datasetReloadVersion]);
+
+  useEffect(() => {
+    if (clientId === null) {
+      clearResults();
+      return;
+    }
+    const restored = initialInsights.filter((insight) => insight.client_id === clientId);
+    if (restored.length > 0 || initialAnalysisRun?.client_id === clientId) {
+      setInsights(restored);
+      setAnalysisRun(initialAnalysisRun?.client_id === clientId ? initialAnalysisRun : null);
+      setStatus("ready");
+      setError(null);
+      setRejected([]);
+      setFilters(EMPTY_FILTERS);
+      setSelected(null);
+    } else if (restoreStatus === "ready") {
+      clearResults();
+    }
+  }, [clientId, initialAnalysisRun, initialInsights, restoreStatus]);
+
+  useEffect(() => {
+    if (clientId === null || insights.length === 0) return;
+    const controller = new AbortController();
+    void api.listSignals(clientId, controller.signal)
+      .then((signals) => {
+        if (controller.signal.aborted) return;
+        setSignalsById(new Map(
+          signals
+            .filter((signal) => signal.client_id === clientId)
+            .map((signal) => [signal.id, signal]),
+        ));
+      })
+      .catch((reason) => {
+        if (controller.signal.aborted || isAbortError(reason)) return;
+        setEvidenceWarning(
+          "Insights are available, but source metadata could not be loaded. Evidence excerpts remain visible.",
+        );
+      });
+    return () => controller.abort();
+  }, [clientId, insights]);
 
   useEffect(
     () => () => {
@@ -163,6 +206,7 @@ export function Insights({
     datasetController.current?.abort();
     analysisController.current?.abort();
     clearResults();
+    setIsAnalysing(false);
     setDatasets([]);
     setDatasetError(null);
     onClientChange(nextClientId);
@@ -171,12 +215,13 @@ export function Insights({
   const changeDataset = (nextDatasetId: number | null) => {
     if (nextDatasetId === datasetId) return;
     analysisController.current?.abort();
-    clearResults();
+    setError(null);
+    setIsAnalysing(false);
     onDatasetChange(nextDatasetId);
   };
 
   const runAnalysis = async () => {
-    if (clientId === null || datasetId === null || status === "loading") return;
+    if (clientId === null || datasetId === null || isAnalysing) return;
     const dataset = datasets.find((item) => item.id === datasetId);
     if (!dataset || !isReady(dataset)) {
       setStatus("error");
@@ -187,15 +232,10 @@ export function Insights({
     const controller = new AbortController();
     analysisController.current?.abort();
     analysisController.current = controller;
-    setStatus("loading");
+    setIsAnalysing(true);
+    if (insights.length === 0) setStatus("loading");
     setError(null);
     setEvidenceWarning(null);
-    setInsights([]);
-    setSignalsById(new Map());
-    setAnalysisRun(null);
-    setRejected([]);
-    setFilters(EMPTY_FILTERS);
-    setSelected(null);
 
     try {
       const [analysisOutcome, signalsOutcome] = await Promise.allSettled([
@@ -218,7 +258,7 @@ export function Insights({
       setAnalysisRun(analysisOutcome.value.analysis_run);
       setRejected(analysisOutcome.value.rejected);
       setInsights(analysisOutcome.value.insights);
-      onAnalysisComplete(analysisOutcome.value.insights);
+      onAnalysisComplete(analysisOutcome.value);
       setStatus("ready");
       requestAnimationFrame(() => {
         document.getElementById("analysis-complete")?.scrollIntoView({
@@ -229,9 +269,10 @@ export function Insights({
     } catch (reason) {
       if (!isAbortError(reason)) {
         setError((reason as Error).message);
-        setStatus("error");
+        setStatus(insights.length > 0 ? "ready" : "error");
       }
     } finally {
+      setIsAnalysing(false);
       if (analysisController.current === controller) {
         analysisController.current = null;
       }
@@ -241,6 +282,10 @@ export function Insights({
   const selectedDataset = useMemo(
     () => datasets.find((dataset) => dataset.id === datasetId) ?? null,
     [datasets, datasetId],
+  );
+  const analysedDataset = useMemo(
+    () => datasets.find((dataset) => dataset.id === analysisRun?.dataset_id) ?? null,
+    [analysisRun?.dataset_id, datasets],
   );
 
   const { sources, products } = useMemo(() => {
@@ -344,6 +389,26 @@ export function Insights({
           </div>
         </header>
 
+        {clientId !== null && restoreStatus === "loading" && insights.length === 0 && (
+          <div role="status" className="analysis-progress">
+            <span className="analysis-pulse" aria-hidden />
+            <div>
+              <p className="font-medium text-white">Loading this client’s latest insights…</p>
+              <p className="text-sm text-slate-400">Restoring the latest completed analysis from the backend.</p>
+            </div>
+          </div>
+        )}
+
+        {clientId !== null && restoreStatus === "error" && (
+          <div className="restore-warning" role={insights.length > 0 ? "status" : "alert"}>
+            <div>
+              <strong>Unable to load the latest saved insights.</strong>
+              <span>{restoreError ?? "Your existing data has not been reset."}</span>
+            </div>
+            {onRetryRestore && <button type="button" className="secondary-button" onClick={onRetryRestore}>Retry</button>}
+          </div>
+        )}
+
         <section className="surface-card analysis-control-panel space-y-5 p-5 sm:p-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
@@ -359,7 +424,7 @@ export function Insights({
           <ClientSelector
             selectedId={clientId}
             onSelect={changeClient}
-            disabled={status === "loading"}
+            disabled={isAnalysing}
           />
 
           {clientId !== null && (
@@ -369,7 +434,7 @@ export function Insights({
                 <select
                   className="mt-2 block w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-slate-100 outline-none transition focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20 disabled:opacity-50"
                   value={datasetId ?? ""}
-                  disabled={datasetStatus === "loading" || status === "loading"}
+                  disabled={datasetStatus === "loading" || isAnalysing}
                   onChange={(event) =>
                     changeDataset(
                       event.target.value ? Number(event.target.value) : null,
@@ -396,14 +461,14 @@ export function Insights({
                 type="button"
                 disabled={
                   datasetId === null ||
-                  status === "loading" ||
+                  isAnalysing ||
                   !selectedDataset ||
                   !isReady(selectedDataset)
                 }
                 onClick={() => void runAnalysis()}
                 className="primary-button"
               >
-                {status === "loading" ? "Analysing..." : "Analyse dataset"}
+                {isAnalysing ? "Analysing..." : "Analyse dataset"}
               </button>
             </div>
           )}
@@ -422,16 +487,40 @@ export function Insights({
           )}
 
           {datasetStatus === "error" && datasetError && (
-            <p
-              role="alert"
-              className="rounded-xl border border-red-800 bg-red-950/40 p-4 text-sm text-red-200"
-            >
-              Could not load datasets: {datasetError}
-            </p>
+            <div className="restore-warning" role="alert">
+              <div>
+                <strong>Could not load this client’s datasets.</strong>
+                <span>{datasetError}</span>
+              </div>
+              <button type="button" className="secondary-button" onClick={() => setDatasetReloadVersion((value) => value + 1)}>Retry</button>
+            </div>
           )}
         </section>
 
-        {status === "loading" && (
+        {clientId === null && (
+          <section className="guided-empty-state">
+            <div>
+              <p className="section-kicker">Client required</p>
+              <h2>Select a client to restore its workflow</h2>
+              <p>The page will load that client’s datasets and latest completed analysis automatically.</p>
+            </div>
+          </section>
+        )}
+
+        {clientId !== null && restoreStatus === "ready" && workflowStatus?.data && !workflowStatus.analysis && (
+          <section className="guided-empty-state">
+            <div>
+              <p className="section-kicker">Analysis required</p>
+              <h2>Customer feedback is ready</h2>
+              <p>
+                {workflowStatus.brief ? "Your Marketing Brief is saved. " : ""}
+                No completed analysis is available yet. Choose the ready dataset above and run analysis.
+              </p>
+            </div>
+          </section>
+        )}
+
+        {isAnalysing && (
           <div role="status" className="analysis-progress">
             <span className="analysis-pulse" aria-hidden />
             <div>
@@ -443,7 +532,7 @@ export function Insights({
           </div>
         )}
 
-        {status === "error" && error && (
+        {error && (
           <div
             role="alert"
             className="rounded-xl border border-red-800 bg-red-950/40 p-4 text-sm text-red-200"
@@ -477,7 +566,7 @@ export function Insights({
                   {insights.length === 1 ? "" : "s"}
                 </h2>
                 <p className="mt-1 text-sm text-slate-400">
-                  {selectedDataset?.name ?? `Dataset #${datasetId}`}
+                  {analysedDataset?.name ?? `Dataset #${analysisRun?.dataset_id ?? datasetId}`}
                   {analysisRun?.completed_at
                     ? ` · completed ${new Date(analysisRun.completed_at).toLocaleString()}`
                     : ""}
@@ -531,7 +620,7 @@ export function Insights({
           </section>
         )}
 
-        {status !== "ready" && (
+        {status === "idle" && restoreStatus !== "loading" && clientId !== null && (
           <section aria-labelledby="insight-areas-title">
             <div className="mb-4 flex items-end justify-between gap-3">
               <div>

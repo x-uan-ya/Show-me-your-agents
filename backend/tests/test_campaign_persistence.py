@@ -1,5 +1,7 @@
 """Persistence contract for briefs, campaigns, content items and approval."""
 
+from datetime import date
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, func, select
@@ -286,6 +288,80 @@ def test_campaign_status_updates_persist_in_approval(env) -> None:
     assert approved.json()["approval"]["reviewer"] == "Demo reviewer"
     assert approved.json()["approval"]["decided_at"] is not None
     assert reloaded.json()["approval"]["status"] == "approved"
+
+
+def test_workflow_status_is_calculated_from_persisted_records(env) -> None:
+    client, session_factory = env
+    client_id = _client(client, "Guided workflow")
+
+    initial = client.get(f"/api/clients/{client_id}/workflow-status").json()
+    assert initial["recommended_next_step"] == "brief"
+    assert initial["client"] is True
+    assert initial["brief"] is False
+
+    brief = _brief(client, client_id)
+    after_brief = client.get(f"/api/clients/{client_id}/workflow-status").json()
+    assert after_brief["brief"] is True
+    assert after_brief["recommended_next_step"] == "data"
+
+    session = session_factory()
+    try:
+        session.add(Dataset(
+            client_id=client_id,
+            name="Ready feedback",
+            source_type="test",
+            status="ready",
+        ))
+        session.commit()
+    finally:
+        session.close()
+    after_data = client.get(f"/api/clients/{client_id}/workflow-status").json()
+    assert after_data["data"] is True
+    assert after_data["recommended_next_step"] == "analysis"
+
+    run_id, insight_id = _analysis_records(session_factory, client_id)
+    after_analysis = client.get(f"/api/clients/{client_id}/workflow-status").json()
+    assert after_analysis["analysis"] is True
+    assert after_analysis["insights"] is True
+    assert after_analysis["latest_analysis_run_id"] == run_id
+    assert after_analysis["insight_count"] == 1
+    assert after_analysis["recommended_next_step"] == "campaign"
+
+    campaign = client.post(
+        f"/api/clients/{client_id}/campaigns",
+        json=_campaign_payload(brief["id"], run_id, insight_id),
+    ).json()
+    after_campaign = client.get(f"/api/clients/{client_id}/workflow-status").json()
+    assert after_campaign["campaign"] is True
+    assert after_campaign["latest_campaign_id"] == campaign["id"]
+    assert after_campaign["recommended_next_step"] == "approval"
+
+    approved = client.patch(
+        f"/api/clients/{client_id}/campaigns/{campaign['id']}/status",
+        json={"status": "approved", "reviewer": "Workflow test"},
+    )
+    assert approved.status_code == 200
+    after_approval = client.get(f"/api/clients/{client_id}/workflow-status").json()
+    assert after_approval["approval"] is True
+    assert after_approval["schedule"] is False
+    assert after_approval["recommended_next_step"] == "schedule"
+
+    session = session_factory()
+    try:
+        item = session.scalar(
+            select(CampaignContentItem).where(
+                CampaignContentItem.campaign_id == campaign["id"]
+            )
+        )
+        assert item is not None
+        item.publish_date = date(2026, 9, 25)
+        session.commit()
+    finally:
+        session.close()
+    completed = client.get(f"/api/clients/{client_id}/workflow-status").json()
+    assert completed["schedule"] is True
+    assert completed["scheduled_item_count"] == 1
+    assert completed["recommended_next_step"] == "complete"
 
 
 def test_calendar_returns_dated_content_with_campaign_and_client_context(env) -> None:

@@ -12,6 +12,7 @@ import {
   type Insight,
   type MarketingBrief,
   type PersistedCampaign,
+  type WorkflowStatus,
 } from "../types";
 
 interface Props {
@@ -19,6 +20,9 @@ interface Props {
   clientName?: string;
   brief: MarketingBrief;
   insights: Insight[];
+  restoreStatus?: "idle" | "loading" | "ready" | "error";
+  workflowStatus?: WorkflowStatus | null;
+  onWorkflowChanged?: () => void;
   onNavigate: (view: AppView) => void;
 }
 
@@ -220,7 +224,16 @@ function pickInsight(insights: Insight[], categories: string[]): Insight | null 
   );
 }
 
-export function CampaignPlan({ clientId, clientName = "", brief, insights, onNavigate }: Props) {
+export function CampaignPlan({
+  clientId,
+  clientName = "",
+  brief,
+  insights,
+  restoreStatus = "ready",
+  workflowStatus = null,
+  onWorkflowChanged,
+  onNavigate,
+}: Props) {
   const auth = useOptionalAuth();
   const canReviewCampaign = !auth?.currentUser
     || auth.currentUser.role === "admin"
@@ -230,6 +243,9 @@ export function CampaignPlan({ clientId, clientName = "", brief, insights, onNav
   const [startDate, setStartDate] = useState(todayInputValue);
   const [gapResult, setGapResult] = useState<CampaignGapResponse | null>(null);
   const [persistedCampaign, setPersistedCampaign] = useState<PersistedCampaign | null>(null);
+  const [campaignLoadStatus, setCampaignLoadStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
+  const [campaignLoadError, setCampaignLoadError] = useState<string | null>(null);
+  const [campaignReloadVersion, setCampaignReloadVersion] = useState(0);
   const [approval, setApproval] = useState<ApprovalState>("draft");
   const [approvalError, setApprovalError] = useState<string | null>(null);
   const [selectedInsight, setSelectedInsight] = useState<Insight | null>(null);
@@ -251,7 +267,7 @@ export function CampaignPlan({ clientId, clientName = "", brief, insights, onNav
   const evidenceReady = activeInsights.length > 0;
   const generated = generationStatus === "success" || generationStatus === "error";
   const showingPersistedOnly = Boolean(
-    persistedCampaign && generationStatus === "idle" && (!briefReady || !evidenceReady),
+    persistedCampaign && (!briefReady || !evidenceReady),
   );
   const keyInsight = activeInsights[0] ?? null;
   const executionDraft = useMemo(
@@ -289,26 +305,39 @@ export function CampaignPlan({ clientId, clientName = "", brief, insights, onNav
     setSelectedInsight(null);
     setSignalsById(new Map());
     setEvidenceWarning(null);
+    setPersistedCampaign(null);
+    setCampaignLoadStatus(clientId === null ? "idle" : "loading");
+    setCampaignLoadError(null);
     return () => analysisController.current?.abort();
-  }, [clientId, brief, insights, startDate]);
+  }, [clientId]);
 
   useEffect(() => {
-    setPersistedCampaign(null);
     if (clientId === null) return;
     const controller = new AbortController();
     campaignListController.current?.abort();
     campaignListController.current = controller;
+    setCampaignLoadStatus("loading");
+    setCampaignLoadError(null);
     api.listCampaigns(clientId, controller.signal)
       .then((campaigns) => {
         if (!controller.signal.aborted) {
-          setPersistedCampaign(
-            campaigns.find((campaign) => campaign.client_id === clientId) ?? null,
+          const latest = campaigns.find((campaign) => campaign.client_id === clientId) ?? null;
+          setPersistedCampaign(latest);
+          setGenerationStatus(latest ? "success" : "idle");
+          setApproval(
+            latest?.status === "approved"
+              ? "approved"
+              : latest?.status === "revision_requested"
+                ? "rejected"
+                : "draft",
           );
+          setCampaignLoadStatus("ready");
         }
       })
       .catch((error) => {
         if (!controller.signal.aborted && !isAbortError(error)) {
-          console.error("Saved campaigns could not be loaded", error);
+          setCampaignLoadError((error as Error).message);
+          setCampaignLoadStatus("error");
         }
       })
       .finally(() => {
@@ -322,7 +351,7 @@ export function CampaignPlan({ clientId, clientName = "", brief, insights, onNav
         campaignListController.current = null;
       }
     };
-  }, [clientId]);
+  }, [campaignReloadVersion, clientId]);
 
   useEffect(() => {
     setSignalsById(new Map());
@@ -358,8 +387,6 @@ export function CampaignPlan({ clientId, clientName = "", brief, insights, onNav
     setGenerationStatus("generating");
     setGenerationError(null);
     setGapResult(null);
-    setPersistedCampaign(null);
-    setApproval("draft");
     setSignalsById(new Map());
     setEvidenceWarning(null);
     setSelectedInsight(null);
@@ -419,7 +446,10 @@ export function CampaignPlan({ clientId, clientName = "", brief, insights, onNav
       }
       setGapResult(response);
       setPersistedCampaign(generated.campaign);
+      setApproval("draft");
       setGenerationStatus("success");
+      setCampaignLoadStatus("ready");
+      onWorkflowChanged?.();
       window.dispatchEvent(new Event(CAMPAIGN_CALENDAR_UPDATED_EVENT));
     } catch (error) {
       if (controller.signal.aborted || isAbortError(error)) return;
@@ -486,6 +516,7 @@ export function CampaignPlan({ clientId, clientName = "", brief, insights, onNav
         { status: next === "rejected" ? "revision_requested" : next },
       );
       setPersistedCampaign(updated);
+      onWorkflowChanged?.();
     } catch (error) {
       if (!isAbortError(error)) {
         setApproval(previous);
@@ -511,6 +542,26 @@ export function CampaignPlan({ clientId, clientName = "", brief, insights, onNav
           </div>
         </header>
 
+        {clientId !== null && (campaignLoadStatus === "loading" || restoreStatus === "loading") && !persistedCampaign && (
+          <div role="status" className="analysis-progress">
+            <span className="analysis-pulse" aria-hidden />
+            <div>
+              <p className="font-medium text-white">Loading {clientName || "client"} campaign context…</p>
+              <p className="text-sm text-slate-400">Restoring the saved brief, latest insights and campaign.</p>
+            </div>
+          </div>
+        )}
+
+        {clientId !== null && campaignLoadStatus === "error" && (
+          <div className="restore-warning" role={persistedCampaign ? "status" : "alert"}>
+            <div>
+              <strong>Unable to load the latest saved campaign.</strong>
+              <span>{campaignLoadError ?? "Existing campaign data has not been reset."}</span>
+            </div>
+            <button type="button" className="secondary-button" onClick={() => setCampaignReloadVersion((value) => value + 1)}>Retry</button>
+          </div>
+        )}
+
         {clientId === null && (
           <EmptyStep
             title="Choose an SME client first"
@@ -520,29 +571,37 @@ export function CampaignPlan({ clientId, clientName = "", brief, insights, onNav
           />
         )}
 
-        {showingPersistedOnly && persistedCampaign && (
+        {campaignLoadStatus !== "loading" && showingPersistedOnly && persistedCampaign && (
           <PersistedCampaignSummary campaign={persistedCampaign} />
         )}
 
-        {clientId !== null && !showingPersistedOnly && !briefReady && (
+        {clientId !== null && campaignLoadStatus === "ready" && restoreStatus !== "loading" && !showingPersistedOnly && !briefReady && (
           <EmptyStep
             title="Complete the campaign brief"
-            copy="Add a business objective, target audience and at least one marketing channel."
+            copy="This client is selected. Add a business objective, target audience and at least one marketing channel; changes save automatically."
             action="Complete client brief"
             onClick={() => onNavigate("import")}
           />
         )}
 
-        {clientId !== null && !showingPersistedOnly && briefReady && !evidenceReady && (
+        {clientId !== null && campaignLoadStatus === "ready" && restoreStatus !== "loading" && !showingPersistedOnly && briefReady && !evidenceReady && (
           <EmptyStep
-            title="Customer evidence is required"
-            copy="Analyse customer feedback before generating campaign direction."
-            action="Open customer insights"
-            onClick={() => onNavigate("insights")}
+            title={workflowStatus?.data
+              ? "Analysis is the next step"
+              : workflowStatus
+                ? "Customer data is required"
+                : "Customer evidence is required"}
+            copy={workflowStatus?.data
+              ? "Your Marketing Brief and customer data are saved. Run analysis to generate usable insights."
+              : workflowStatus
+                ? "Your Marketing Brief is saved. Upload and confirm customer feedback before generating campaign direction."
+                : "Analyse customer feedback before generating campaign direction."}
+            action={workflowStatus?.data ? "Run customer analysis" : workflowStatus ? "Upload customer data" : "Open customer insights"}
+            onClick={() => onNavigate(workflowStatus && !workflowStatus.data ? "import" : "insights")}
           />
         )}
 
-        {clientId !== null && briefReady && evidenceReady && generationStatus === "idle" && (
+        {clientId !== null && campaignLoadStatus === "ready" && briefReady && evidenceReady && generationStatus === "idle" && (
           <section className="campaign-gate">
             <div className="campaign-gate-copy">
               <p className="section-kicker">Inputs ready</p>
@@ -606,13 +665,17 @@ export function CampaignPlan({ clientId, clientName = "", brief, insights, onNav
         {generated && briefReady && evidenceReady && (
           <>
             {persistedCampaign && (
-              <section className="rounded-2xl border border-emerald-700/60 bg-emerald-950/35 p-4">
-                <p className="text-sm font-semibold text-emerald-200">
-                  Saved to backend as Campaign #{persistedCampaign.id}
-                  <span className="ml-2 font-normal text-emerald-300/80">
-                    · {persistedCampaign.status}
-                  </span>
-                </p>
+              <section className="campaign-saved-banner">
+                <div>
+                  <p className="text-sm font-semibold text-emerald-200">
+                    Saved to backend as Campaign #{persistedCampaign.id}
+                    <span className="ml-2 font-normal text-emerald-300/80">
+                      · {persistedCampaign.status}
+                    </span>
+                  </p>
+                  <span>Your campaign will remain available after navigation or refresh.</span>
+                </div>
+                <button type="button" className="secondary-button" onClick={() => onNavigate("campaign-calendar")}>Continue to calendar</button>
               </section>
             )}
             {generationError && (

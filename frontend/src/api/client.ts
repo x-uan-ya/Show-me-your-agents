@@ -27,6 +27,7 @@ import type {
   UploadResponse,
   UserRole,
   WorkspaceMember,
+  WorkflowStatus,
 } from "../types";
 
 // Default to a relative "/api" so the app works when the backend serves the
@@ -255,6 +256,8 @@ export const api = {
   listClients: (signal?: AbortSignal) => getJson<Client[]>("/clients", signal),
   getClient: (clientId: number, signal?: AbortSignal) =>
     getJson<Client>(`/clients/${clientId}`, signal),
+  getWorkflowStatus: (clientId: number, signal?: AbortSignal) =>
+    getJson<WorkflowStatus>(`/clients/${clientId}/workflow-status`, signal),
   createClient: (
     payload: { name: string; industry?: string },
     signal?: AbortSignal,
@@ -302,6 +305,12 @@ export const api = {
       { dataset_id: datasetId },
       signal,
       120_000,
+    ),
+
+  latestAnalysis: (clientId: number, signal?: AbortSignal) =>
+    getJson<AnalyseResponse | null>(
+      `/clients/${clientId}/analyses/latest`,
+      signal,
     ),
 
   behaviourSummary: (clientId: number, signal?: AbortSignal) =>

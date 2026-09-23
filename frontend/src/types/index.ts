@@ -228,6 +228,34 @@ export interface Client {
   updated_at: string;
 }
 
+export type WorkflowNextStep =
+  | "brief"
+  | "data"
+  | "analysis"
+  | "campaign"
+  | "approval"
+  | "schedule"
+  | "complete";
+
+export interface WorkflowStatus {
+  client_id: number;
+  client_name: string;
+  client: boolean;
+  brief: boolean;
+  data: boolean;
+  analysis: boolean;
+  insights: boolean;
+  campaign: boolean;
+  approval: boolean;
+  schedule: boolean;
+  latest_dataset_id: number | null;
+  latest_analysis_run_id: number | null;
+  latest_campaign_id: number | null;
+  insight_count: number;
+  scheduled_item_count: number;
+  recommended_next_step: WorkflowNextStep;
+}
+
 // Canonical ingestion fields. `text` is required; the rest are optional.
 export const CANONICAL_FIELDS = [
   "text",

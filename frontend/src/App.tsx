@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { api, isAbortError } from "./api/client";
 import { useOptionalAuth } from "./auth/AuthContext";
@@ -9,20 +9,28 @@ import { ImportData } from "./pages/ImportData";
 import { Insights } from "./pages/Insights";
 import { TrialVsRetention } from "./pages/TrialVsRetention";
 import { TeamAccess } from "./pages/TeamAccess";
+import { WorkflowProgress } from "./components/WorkflowProgress";
 import {
   EMPTY_MARKETING_BRIEF,
+  type AnalyseResponse,
+  type AnalysisRun,
   type AppView,
   type CampaignCalendarItem,
   type Insight,
   type MarketingBrief,
+  type WorkflowStatus,
 } from "./types";
-import { hashForView, viewFromHash } from "./utils/navigation";
+import { clientIdFromHash, hashForView, viewFromHash } from "./utils/navigation";
 import { CAMPAIGN_CALENDAR_UPDATED_EVENT, clientActivityColorStyle } from "./utils/campaignColors";
 
 const CLIENT_STORAGE_SUFFIX = "selected-client";
 const CLIENT_NAME_STORAGE_SUFFIX = "selected-client-name";
 const BRIEF_STORAGE_PREFIX = "brief:";
+const BRIEF_DIRTY_STORAGE_PREFIX = "brief-dirty:";
 const ANALYSIS_STORAGE_PREFIX = "analysis:";
+
+type BriefSaveStatus = "idle" | "unsaved" | "saving" | "saved" | "error";
+type RestoreStatus = "idle" | "loading" | "ready" | "error";
 
 function workspaceStorageKey(scope: string, suffix: string): string {
   return `customer-intelligence:${scope}:${suffix}`;
@@ -95,7 +103,9 @@ function WorkspaceCalendar({ refreshKey }: { refreshKey: AppView }) {
       api.listCalendarItems({}, controller.signal)
         .then(setCampaignItems)
         .catch((reason) => {
-          if (!isAbortError(reason)) setCampaignItems([]);
+          if (!isAbortError(reason)) {
+            // Keep the last rendered schedule while a refresh is temporarily unavailable.
+          }
         });
     };
     loadItems();
@@ -153,6 +163,28 @@ function storedClientId(scope: string): number | null {
   if (!value) return null;
   const parsed = Number(value);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+}
+
+function initialClientId(scope: string): number | null {
+  return clientIdFromHash(window.location.hash) ?? storedClientId(scope);
+}
+
+function initialClientName(scope: string): string {
+  const routeClientId = clientIdFromHash(window.location.hash);
+  const cachedClientId = storedClientId(scope);
+  if (routeClientId !== null && routeClientId !== cachedClientId) return "";
+  if (routeClientId === null && cachedClientId === null) return "";
+  return window.localStorage.getItem(
+    workspaceStorageKey(scope, CLIENT_NAME_STORAGE_SUFFIX),
+  ) ?? "";
+}
+
+function briefDirtyKey(scope: string, clientId: number): string {
+  return workspaceStorageKey(scope, `${BRIEF_DIRTY_STORAGE_PREFIX}${clientId}`);
+}
+
+function isStoredBriefDirty(scope: string, clientId: number): boolean {
+  return window.localStorage.getItem(briefDirtyKey(scope, clientId)) === "1";
 }
 
 function storedBrief(scope: string, clientId: number | null): MarketingBrief {
@@ -216,41 +248,91 @@ export default function App() {
   const [view, setView] = useState<AppView>(() =>
     viewFromHash(window.location.hash),
   );
-  const [clientId, setClientId] = useState<number | null>(() => storedClientId(storageScope));
-  const [clientName, setClientName] = useState(() =>
-    storedClientId(storageScope) === null
-      ? ""
-      : window.localStorage.getItem(
-          workspaceStorageKey(storageScope, CLIENT_NAME_STORAGE_SUFFIX),
-        ) ?? "",
-  );
+  const [clientId, setClientId] = useState<number | null>(() => initialClientId(storageScope));
+  const [clientName, setClientName] = useState(() => initialClientName(storageScope));
   const [datasetId, setDatasetId] = useState<number | null>(() =>
-    storedAnalysis(storageScope, storedClientId(storageScope)).datasetId
+    storedAnalysis(storageScope, initialClientId(storageScope)).datasetId
   );
   const [brief, setBrief] = useState<MarketingBrief>(() =>
-    storedBrief(storageScope, storedClientId(storageScope)),
+    storedBrief(storageScope, initialClientId(storageScope)),
   );
   const [briefHydratedClientId, setBriefHydratedClientId] = useState<number | null>(null);
+  const [briefSaveStatus, setBriefSaveStatus] = useState<BriefSaveStatus>("idle");
+  const [briefSaveError, setBriefSaveError] = useState<string | null>(null);
+  const [briefSaveRetryVersion, setBriefSaveRetryVersion] = useState(0);
   const [latestInsights, setLatestInsights] = useState<Insight[]>(() =>
-    storedAnalysis(storageScope, storedClientId(storageScope)).insights
+    storedAnalysis(storageScope, initialClientId(storageScope)).insights
   );
+  const [latestAnalysisRun, setLatestAnalysisRun] = useState<AnalysisRun | null>(null);
+  const [workflowStatus, setWorkflowStatus] = useState<WorkflowStatus | null>(null);
+  const [workflowRestoreStatus, setWorkflowRestoreStatus] = useState<RestoreStatus>(
+    clientId === null ? "idle" : "loading",
+  );
+  const [workflowError, setWorkflowError] = useState<string | null>(null);
+  const [workflowRefreshVersion, setWorkflowRefreshVersion] = useState(0);
   const hasMounted = useRef(false);
   const briefEditVersion = useRef(0);
   const visibleTabs = TABS.filter((tab) =>
     tab.id !== "team-access" || auth?.currentUser?.role === "admin"
   );
 
+  const selectClient = useCallback((nextClientId: number | null, updateRoute = true) => {
+    if (clientId !== nextClientId) {
+      const restored = storedAnalysis(storageScope, nextClientId);
+      briefEditVersion.current += 1;
+      setClientName("");
+      setDatasetId(restored.datasetId);
+      setLatestInsights(
+        nextClientId === null
+          ? []
+          : restored.insights.filter((insight) => insight.client_id === nextClientId),
+      );
+      setLatestAnalysisRun(null);
+      setWorkflowStatus(null);
+      setWorkflowError(null);
+      setWorkflowRestoreStatus(nextClientId === null ? "idle" : "loading");
+      setBriefHydratedClientId(null);
+      setBrief(storedBrief(storageScope, nextClientId));
+      setBriefSaveStatus(
+        nextClientId !== null && isStoredBriefDirty(storageScope, nextClientId)
+          ? "unsaved"
+          : "idle",
+      );
+      setBriefSaveError(null);
+    }
+    setClientId(nextClientId);
+    if (nextClientId === null) {
+      window.localStorage.removeItem(workspaceStorageKey(storageScope, CLIENT_STORAGE_SUFFIX));
+      window.localStorage.removeItem(workspaceStorageKey(storageScope, CLIENT_NAME_STORAGE_SUFFIX));
+    } else {
+      window.localStorage.setItem(
+        workspaceStorageKey(storageScope, CLIENT_STORAGE_SUFFIX),
+        String(nextClientId),
+      );
+    }
+    if (updateRoute) {
+      const nextHash = hashForView(view, nextClientId);
+      if (window.location.hash !== nextHash) window.location.hash = nextHash;
+    }
+  }, [clientId, storageScope, view]);
+
   useEffect(() => {
-    const syncView = () => setView(viewFromHash(window.location.hash));
+    const syncView = () => {
+      setView(viewFromHash(window.location.hash));
+      const routeClientId = clientIdFromHash(window.location.hash);
+      if (routeClientId !== null && routeClientId !== clientId) {
+        selectClient(routeClientId, false);
+      }
+    };
     window.addEventListener("hashchange", syncView);
     return () => window.removeEventListener("hashchange", syncView);
-  }, []);
+  }, [clientId, selectClient]);
 
   useEffect(() => {
     if (view === "team-access" && auth?.currentUser?.role !== "admin") {
-      window.location.hash = hashForView("dashboard");
+      window.location.hash = hashForView("dashboard", clientId);
     }
-  }, [auth?.currentUser?.role, view]);
+  }, [auth?.currentUser?.role, clientId, view]);
 
   useEffect(() => {
     const label = TABS.find((tab) => tab.id === view)?.label ?? "Overview";
@@ -290,36 +372,50 @@ export default function App() {
 
   useEffect(() => {
     setBriefHydratedClientId(null);
+    setBriefSaveError(null);
     if (clientId === null) {
       setBrief(EMPTY_MARKETING_BRIEF);
+      setBriefSaveStatus("idle");
       return;
     }
 
     const fallback = storedBrief(storageScope, clientId);
+    const hasUnsavedDraft = isStoredBriefDirty(storageScope, clientId);
     setBrief(fallback);
+    setBriefSaveStatus(hasUnsavedDraft ? "unsaved" : "idle");
     const loadVersion = briefEditVersion.current;
     const controller = new AbortController();
     api.getMarketingBrief(clientId, controller.signal)
       .then((record) => {
         if (controller.signal.aborted) return;
-        if (record && briefEditVersion.current === loadVersion) {
-          const persistedBrief: MarketingBrief = {
-            objective: record.objective,
-            target_audience: record.target_audience,
-            current_message: record.current_message,
-            channels: record.channels,
-          };
-          setBrief(persistedBrief);
-          window.localStorage.setItem(
-            workspaceStorageKey(storageScope, `${BRIEF_STORAGE_PREFIX}${clientId}`),
-            JSON.stringify(persistedBrief),
-          );
+        if (!hasUnsavedDraft && briefEditVersion.current === loadVersion) {
+          if (record) {
+            const persistedBrief: MarketingBrief = {
+              objective: record.objective,
+              target_audience: record.target_audience,
+              current_message: record.current_message,
+              channels: record.channels,
+            };
+            setBrief(persistedBrief);
+            window.localStorage.setItem(
+              workspaceStorageKey(storageScope, `${BRIEF_STORAGE_PREFIX}${clientId}`),
+              JSON.stringify(persistedBrief),
+            );
+            setBriefSaveStatus("saved");
+          } else {
+            setBrief(EMPTY_MARKETING_BRIEF);
+            window.localStorage.removeItem(
+              workspaceStorageKey(storageScope, `${BRIEF_STORAGE_PREFIX}${clientId}`),
+            );
+            setBriefSaveStatus("idle");
+          }
         }
         setBriefHydratedClientId(clientId);
       })
       .catch((error) => {
         if (!controller.signal.aborted && !isAbortError(error)) {
-          // Keep the browser copy as an offline-safe migration fallback.
+          setBriefSaveError("Unable to load the saved brief. The local draft remains available.");
+          if (hasUnsavedDraft) setBriefSaveStatus("error");
           setBriefHydratedClientId(clientId);
         }
       });
@@ -327,13 +423,26 @@ export default function App() {
   }, [clientId, storageScope]);
 
   useEffect(() => {
-    if (clientId === null || briefHydratedClientId !== clientId) return;
+    if (
+      clientId === null ||
+      briefHydratedClientId !== clientId ||
+      !isStoredBriefDirty(storageScope, clientId)
+    ) return;
     const controller = new AbortController();
     const timeout = window.setTimeout(() => {
+      setBriefSaveStatus("saving");
+      setBriefSaveError(null);
       void api.saveMarketingBrief(clientId, brief, controller.signal)
+        .then(() => {
+          if (controller.signal.aborted) return;
+          window.localStorage.removeItem(briefDirtyKey(storageScope, clientId));
+          setBriefSaveStatus("saved");
+          setWorkflowRefreshVersion((value) => value + 1);
+        })
         .catch((error) => {
           if (!controller.signal.aborted && !isAbortError(error)) {
-            // localStorage remains available as a safe fallback if the API is offline.
+            setBriefSaveStatus("error");
+            setBriefSaveError("Unable to save the brief. Your local draft is preserved; retry when the connection returns.");
           }
         });
     }, 500);
@@ -341,10 +450,95 @@ export default function App() {
       window.clearTimeout(timeout);
       controller.abort();
     };
-  }, [brief, briefHydratedClientId, clientId]);
+  }, [brief, briefHydratedClientId, briefSaveRetryVersion, clientId, storageScope]);
+
+  useEffect(() => {
+    if (clientId === null) {
+      setWorkflowStatus(null);
+      setWorkflowError(null);
+      setWorkflowRestoreStatus("idle");
+      return;
+    }
+
+    const controller = new AbortController();
+    setWorkflowRestoreStatus("loading");
+    setWorkflowError(null);
+    void Promise.allSettled([
+      api.getWorkflowStatus(clientId, controller.signal),
+      api.latestAnalysis(clientId, controller.signal),
+    ]).then(([statusResult, analysisResult]) => {
+      if (controller.signal.aborted) return;
+      const errors: string[] = [];
+
+      if (statusResult.status === "fulfilled") {
+        if (statusResult.value.client_id !== clientId) {
+          errors.push("Workflow status belongs to a different client.");
+        } else {
+          setWorkflowStatus(statusResult.value);
+          setClientName(statusResult.value.client_name);
+          window.localStorage.setItem(
+            workspaceStorageKey(storageScope, CLIENT_NAME_STORAGE_SUFFIX),
+            statusResult.value.client_name,
+          );
+        }
+      } else if (!isAbortError(statusResult.reason)) {
+        errors.push((statusResult.reason as Error).message);
+      }
+
+      if (analysisResult.status === "fulfilled") {
+        const restored = analysisResult.value;
+        if (restored && restored.analysis_run.client_id !== clientId) {
+          errors.push("Latest analysis belongs to a different client.");
+        } else if (restored) {
+          setLatestAnalysisRun(restored.analysis_run);
+          setLatestInsights(restored.insights);
+          setDatasetId(restored.analysis_run.dataset_id);
+          saveAnalysis(
+            storageScope,
+            clientId,
+            restored.analysis_run.dataset_id,
+            restored.insights,
+          );
+        } else {
+          setLatestAnalysisRun(null);
+          setLatestInsights([]);
+          if (statusResult.status === "fulfilled") {
+            setDatasetId(statusResult.value.latest_dataset_id);
+          }
+          saveAnalysis(
+            storageScope,
+            clientId,
+            statusResult.status === "fulfilled" ? statusResult.value.latest_dataset_id : null,
+            [],
+          );
+        }
+      } else if (!isAbortError(analysisResult.reason)) {
+        errors.push((analysisResult.reason as Error).message);
+      }
+
+      if (errors.length > 0) {
+        setWorkflowError(errors.join(" "));
+        setWorkflowRestoreStatus("error");
+      } else {
+        setWorkflowRestoreStatus("ready");
+      }
+    });
+
+    return () => controller.abort();
+  }, [clientId, storageScope, workflowRefreshVersion]);
+
+  useEffect(() => {
+    if (!(["unsaved", "saving", "error"] as BriefSaveStatus[]).includes(briefSaveStatus)) return;
+    const warn = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [briefSaveStatus]);
 
   const navigate = (next: AppView) => {
-    const nextHash = hashForView(next);
+    const nextHash = hashForView(next, clientId);
     if (window.location.hash === nextHash) setView(next);
     else window.location.hash = nextHash;
   };
@@ -359,28 +553,6 @@ export default function App() {
     }
   };
 
-  const selectClient = (nextClientId: number | null) => {
-    if (clientId !== nextClientId) {
-      const restored = storedAnalysis(storageScope, nextClientId);
-      briefEditVersion.current += 1;
-      setClientName("");
-      setDatasetId(restored.datasetId);
-      setLatestInsights(restored.insights);
-      setBriefHydratedClientId(null);
-      setBrief(storedBrief(storageScope, nextClientId));
-    }
-    setClientId(nextClientId);
-    if (nextClientId === null) {
-      window.localStorage.removeItem(workspaceStorageKey(storageScope, CLIENT_STORAGE_SUFFIX));
-      window.localStorage.removeItem(workspaceStorageKey(storageScope, CLIENT_NAME_STORAGE_SUFFIX));
-    } else {
-      window.localStorage.setItem(
-        workspaceStorageKey(storageScope, CLIENT_STORAGE_SUFFIX),
-        String(nextClientId),
-      );
-    }
-  };
-
   const removeDeletedClientContext = (deletedClientId: number) => {
     window.localStorage.removeItem(
       workspaceStorageKey(storageScope, `${BRIEF_STORAGE_PREFIX}${deletedClientId}`),
@@ -388,6 +560,7 @@ export default function App() {
     window.localStorage.removeItem(
       workspaceStorageKey(storageScope, `${ANALYSIS_STORAGE_PREFIX}${deletedClientId}`),
     );
+    window.localStorage.removeItem(briefDirtyKey(storageScope, deletedClientId));
     if (clientId !== deletedClientId) return;
 
     briefEditVersion.current += 1;
@@ -395,10 +568,17 @@ export default function App() {
     setBrief(EMPTY_MARKETING_BRIEF);
     setDatasetId(null);
     setLatestInsights([]);
+    setLatestAnalysisRun(null);
+    setWorkflowStatus(null);
+    setWorkflowRestoreStatus("idle");
+    setWorkflowError(null);
+    setBriefSaveStatus("idle");
+    setBriefSaveError(null);
     setClientName("");
     setClientId(null);
     window.localStorage.removeItem(workspaceStorageKey(storageScope, CLIENT_STORAGE_SUFFIX));
     window.localStorage.removeItem(workspaceStorageKey(storageScope, CLIENT_NAME_STORAGE_SUFFIX));
+    window.location.hash = hashForView(view);
   };
 
   const updateBrief = (nextBrief: MarketingBrief) => {
@@ -409,25 +589,28 @@ export default function App() {
         workspaceStorageKey(storageScope, `${BRIEF_STORAGE_PREFIX}${clientId}`),
         JSON.stringify(nextBrief),
       );
+      window.localStorage.setItem(briefDirtyKey(storageScope, clientId), "1");
+      setBriefSaveStatus("unsaved");
+      setBriefSaveError(null);
     }
   };
 
   const openImportedDataset = (nextDatasetId: number) => {
     setDatasetId(nextDatasetId);
-    setLatestInsights([]);
-    saveAnalysis(storageScope, clientId, nextDatasetId, []);
+    setWorkflowRefreshVersion((value) => value + 1);
     navigate("insights");
   };
 
   const changeDataset = (nextDatasetId: number | null) => {
     setDatasetId(nextDatasetId);
-    setLatestInsights([]);
-    saveAnalysis(storageScope, clientId, nextDatasetId, []);
   };
 
-  const storeLatestInsights = (nextInsights: Insight[]) => {
-    setLatestInsights(nextInsights);
-    saveAnalysis(storageScope, clientId, datasetId, nextInsights);
+  const storeLatestAnalysis = (response: AnalyseResponse) => {
+    setLatestAnalysisRun(response.analysis_run);
+    setDatasetId(response.analysis_run.dataset_id);
+    setLatestInsights(response.insights);
+    saveAnalysis(storageScope, clientId, response.analysis_run.dataset_id, response.insights);
+    setWorkflowRefreshVersion((value) => value + 1);
   };
 
   return (
@@ -438,7 +621,7 @@ export default function App() {
 
       <aside className="app-sidebar">
         <a
-          href={hashForView("dashboard")}
+          href={hashForView("dashboard", clientId)}
           className="app-brand"
           onClick={() => setView("dashboard")}
         >
@@ -463,7 +646,7 @@ export default function App() {
           {visibleTabs.map((tab, index) => (
             <a
               key={tab.id}
-              href={hashForView(tab.id)}
+              href={hashForView(tab.id, clientId)}
               aria-current={view === tab.id ? "page" : undefined}
               className={`app-nav-link ${view === tab.id ? "is-active" : ""}`}
             >
@@ -532,7 +715,7 @@ export default function App() {
       <div className="app-workspace">
         <header className="mobile-app-header">
           <a
-            href={hashForView("dashboard")}
+            href={hashForView("dashboard", clientId)}
             className="app-brand"
             onClick={() => setView("dashboard")}
           >
@@ -553,7 +736,7 @@ export default function App() {
           {visibleTabs.map((tab) => (
             <a
               key={tab.id}
-              href={hashForView(tab.id)}
+              href={hashForView(tab.id, clientId)}
               aria-current={view === tab.id ? "page" : undefined}
               className={view === tab.id ? "is-active" : ""}
             >
@@ -564,53 +747,87 @@ export default function App() {
         </nav>
 
         <div id="workspace-content" tabIndex={-1}>
+          {clientId !== null && view !== "team-access" && (
+            <WorkflowProgress
+              clientName={clientName || `Client #${clientId}`}
+              currentView={view}
+              status={workflowStatus}
+              loading={workflowRestoreStatus === "loading"}
+              error={workflowError}
+              onNavigate={navigate}
+              onRetry={() => setWorkflowRefreshVersion((value) => value + 1)}
+            />
+          )}
           {view === "dashboard" && (
             <Dashboard
               selectedClientId={clientId}
               selectedClientName={clientName}
               hasInsights={latestInsights.length > 0}
+              workflowStatus={workflowStatus}
               onNavigate={navigate}
             />
           )}
           {view === "import" && (
             <ImportData
+              key={clientId ?? "no-client"}
               clientId={clientId}
               brief={brief}
               onClientChange={selectClient}
               onBriefChange={updateBrief}
+              briefSaveStatus={briefSaveStatus}
+              briefSaveError={briefSaveError}
+              onRetryBriefSave={() => setBriefSaveRetryVersion((value) => value + 1)}
+              onDataImported={(nextDatasetId) => {
+                setDatasetId(nextDatasetId);
+                setWorkflowRefreshVersion((value) => value + 1);
+              }}
               onReadyToAnalyse={openImportedDataset}
             />
           )}
           {view === "insights" && (
             <Insights
+              key={clientId ?? "no-client"}
               clientId={clientId}
               datasetId={datasetId}
               initialInsights={latestInsights}
+              initialAnalysisRun={latestAnalysisRun}
+              restoreStatus={workflowRestoreStatus}
+              restoreError={workflowError}
+              workflowStatus={workflowStatus}
               onClientChange={selectClient}
               onDatasetChange={changeDataset}
               onNavigate={navigate}
-              onAnalysisComplete={storeLatestInsights}
+              onRetryRestore={() => setWorkflowRefreshVersion((value) => value + 1)}
+              onAnalysisComplete={storeLatestAnalysis}
             />
           )}
           {view === "campaign-plan" && (
             <CampaignPlan
+              key={clientId ?? "no-client"}
               clientId={clientId}
               clientName={clientName}
               brief={brief}
               insights={latestInsights}
+              restoreStatus={workflowRestoreStatus}
+              workflowStatus={workflowStatus}
+              onWorkflowChanged={() => setWorkflowRefreshVersion((value) => value + 1)}
               onNavigate={navigate}
             />
           )}
           {view === "trial-retention" && (
             <TrialVsRetention
+              key={clientId ?? "no-client"}
               clientId={clientId}
               onClientChange={selectClient}
             />
           )}
           {view === "campaign-calendar" && (
             <CampaignCalendar
+              key={clientId ?? "all-clients"}
+              selectedClientId={clientId}
               onNavigate={navigate}
               onClientDeleted={removeDeletedClientContext}
+              onWorkflowChanged={() => setWorkflowRefreshVersion((value) => value + 1)}
             />
           )}
           {view === "team-access" && auth?.currentUser?.role === "admin" && (

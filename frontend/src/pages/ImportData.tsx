@@ -17,6 +17,10 @@ interface Props {
   brief: MarketingBrief;
   onClientChange: (id: number | null) => void;
   onBriefChange: (brief: MarketingBrief) => void;
+  briefSaveStatus?: "idle" | "unsaved" | "saving" | "saved" | "error";
+  briefSaveError?: string | null;
+  onRetryBriefSave?: () => void;
+  onDataImported?: (datasetId: number) => void;
   onReadyToAnalyse: (datasetId: number) => void;
 }
 
@@ -29,6 +33,10 @@ export function ImportData({
   brief,
   onClientChange,
   onBriefChange,
+  briefSaveStatus = "idle",
+  briefSaveError = null,
+  onRetryBriefSave,
+  onDataImported,
   onReadyToAnalyse,
 }: Props) {
   const [file, setFile] = useState<File | null>(null);
@@ -104,6 +112,7 @@ export function ImportData({
     try {
       const response = await api.confirmMapping(clientId, upload.dataset_id, mapping, controller.signal);
       setResult(response);
+      onDataImported?.(upload.dataset_id);
     } catch (e) {
       if (!isAbortError(e)) setError((e as Error).message);
     } finally {
@@ -157,7 +166,23 @@ export function ImportData({
           {clientId !== null && (
             <div className="mt-6 border-t border-slate-800 pt-5">
               <div className="mb-4">
-                <p className="section-kicker">Campaign brief</p>
+                <div className="brief-save-heading">
+                  <p className="section-kicker">Campaign brief</p>
+                  <span
+                    className={`brief-save-status is-${briefSaveStatus}`}
+                    role={briefSaveStatus === "error" ? "alert" : "status"}
+                  >
+                    {briefSaveStatus === "saving"
+                      ? "Saving…"
+                      : briefSaveStatus === "saved"
+                        ? "✓ Saved"
+                        : briefSaveStatus === "unsaved"
+                          ? "Unsaved changes"
+                          : briefSaveStatus === "error"
+                            ? "Save failed"
+                            : "Autosave ready"}
+                  </span>
+                </div>
                 <h3 className="mt-1 text-base font-semibold text-white">
                   Define what this SME wants to achieve
                 </h3>
@@ -165,6 +190,14 @@ export function ImportData({
                   Define the specific campaign content, audience and direction
                   for this client.
                 </p>
+                {briefSaveError && (
+                  <div className="brief-save-error">
+                    <span>{briefSaveError}</span>
+                    {onRetryBriefSave && (
+                      <button type="button" onClick={onRetryBriefSave}>Retry save</button>
+                    )}
+                  </div>
+                )}
               </div>
               <div className="grid gap-4 md:grid-cols-2">
                 <label className="form-field">

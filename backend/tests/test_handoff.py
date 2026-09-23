@@ -207,6 +207,33 @@ def test_client_isolation(env):
     assert b_ctx["analysis_run_id"] is None
 
 
+def test_latest_completed_analysis_restores_persisted_insights_and_evidence(env):
+    client, sf = env
+    cid = _analysed_client(client, sf)
+
+    response = client.get(f"/api/clients/{cid}/analyses/latest")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["analysis_run"]["client_id"] == cid
+    assert body["analysis_run"]["status"] == "completed"
+    assert body["insights"]
+    assert all(item["client_id"] == cid for item in body["insights"])
+    assert all(item["evidence"] for item in body["insights"])
+
+
+def test_latest_completed_analysis_is_empty_for_client_without_a_run(env):
+    client, sf = env
+    analysed_id = _analysed_client(client, sf)
+    empty_id = _make_client(client, "No persisted analysis")
+
+    assert client.get(f"/api/clients/{analysed_id}/analyses/latest").json() is not None
+    response = client.get(f"/api/clients/{empty_id}/analyses/latest")
+
+    assert response.status_code == 200
+    assert response.json() is None
+
+
 def test_export_json(env):
     client, sf = env
     cid = _analysed_client(client, sf)
