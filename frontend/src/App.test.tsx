@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -189,7 +189,8 @@ describe("App marketing brief persistence", () => {
     vi.spyOn(window, "confirm").mockReturnValue(true);
 
     render(<App />);
-    await user.click(await screen.findByRole("button", { name: "Delete customer" }));
+    const activeClientRow = await screen.findByRole("row", { name: /Backend Bistro/ });
+    await user.click(within(activeClientRow).getByRole("button", { name: "Delete customer" }));
 
     await waitFor(() => expect(api.deleteClient).toHaveBeenCalledWith(7));
     expect(screen.getByText("No client")).toBeInTheDocument();

@@ -48,6 +48,11 @@ function monthLabel(value: CalendarMonth): string {
   }).format(new Date(value.year, value.month, 1));
 }
 
+function monthName(value: CalendarMonth): string {
+  return new Intl.DateTimeFormat("en-US", { month: "long" })
+    .format(new Date(value.year, value.month, 1));
+}
+
 function publishDateLabel(value: string): string {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
   if (!match) return value;
@@ -86,7 +91,6 @@ function statusTone(status: CampaignCalendarItem["status"]): string {
 }
 
 export function CampaignCalendar({
-  selectedClientId = null,
   onNavigate,
   onClientDeleted,
   onWorkflowChanged,
@@ -102,9 +106,7 @@ export function CampaignCalendar({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [reloadVersion, setReloadVersion] = useState(0);
-  const [clientFilter, setClientFilter] = useState(
-    selectedClientId === null ? "all" : String(selectedClientId),
-  );
+  const [clientFilter, setClientFilter] = useState("all");
   const [channelFilter, setChannelFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [visibleChannels, setVisibleChannels] = useState<string[]>([]);
@@ -135,10 +137,6 @@ export function CampaignCalendar({
 
     return () => controller.abort();
   }, [reloadVersion]);
-
-  useEffect(() => {
-    setClientFilter(selectedClientId === null ? "all" : String(selectedClientId));
-  }, [selectedClientId]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -232,6 +230,8 @@ export function CampaignCalendar({
   };
 
   const label = monthLabel(displayedMonth);
+  const previousMonthName = monthName(moveMonth(displayedMonth, -1));
+  const nextMonthName = monthName(moveMonth(displayedMonth, 1));
 
   const updateItemStatus = async (
     item: CampaignCalendarItem,
@@ -371,8 +371,8 @@ export function CampaignCalendar({
               <h2 id="calendar-view-title" className="mt-1 text-xl font-semibold text-white">{label} campaign activity</h2>
             </div>
             <div className="flex flex-wrap gap-2">
-              <button type="button" className="secondary-button" aria-label="Previous month" onClick={() => changeMonth(-1)}>Previous</button>
-              <button type="button" className="secondary-button" aria-label="Next month" onClick={() => changeMonth(1)}>Next</button>
+              <button type="button" className="secondary-button" aria-label="Previous month" onClick={() => changeMonth(-1)}><span aria-hidden="true">‹</span> {previousMonthName}</button>
+              <button type="button" className="secondary-button" aria-label="Next month" onClick={() => changeMonth(1)}>{nextMonthName} <span aria-hidden="true">›</span></button>
             </div>
           </div>
 
@@ -452,12 +452,16 @@ export function CampaignCalendar({
               <div className="campaign-calendar-list" aria-label={`${publishDateLabel(selectedDate)} campaign schedule`}>
                 {selectedItems.map((item) => (
                   <article key={item.id} className="campaign-calendar-row">
-                    <i className="campaign-detail-dot" style={clientActivityColorStyle(clientColorById.get(item.client_id) ?? 0)} aria-hidden="true" />
-                    <div className="min-w-0 flex-1">
-                      <time className="campaign-calendar-date" dateTime={item.publish_date}>{publishDateLabel(item.publish_date)}</time>
+                    <div className="campaign-detail-main">
+                      <div className="campaign-detail-meta">
+                        <i className="campaign-detail-dot" style={clientActivityColorStyle(clientColorById.get(item.client_id) ?? 0)} aria-hidden="true" />
+                        <span className="campaign-detail-client">{item.client_name}</span>
+                        <span>{item.channel}</span>
+                        {item.content_type && <span>{item.content_type}</span>}
+                      </div>
                       <strong>{item.content}</strong>
-                      <small>{item.campaign_name} · {item.client_name} · {item.channel}</small>
-                      {(item.content_type || item.cta || item.owner) && <small>{[item.content_type, item.cta ? `CTA: ${item.cta}` : null, item.owner ? `Owner: ${item.owner}` : null].filter(Boolean).join(" · ")}</small>}
+                      {(item.cta || item.owner) && <small>{[item.cta ? `CTA: ${item.cta}` : null, item.owner ? `Owner: ${item.owner}` : null].filter(Boolean).join(" · ")}</small>}
+                      <small className="campaign-detail-reference">Campaign #{item.campaign_id}</small>
                     </div>
                     <label className={`campaign-status ${statusTone(item.status)}`}>
                       <span className="sr-only">Publishing status for {item.content}</span>

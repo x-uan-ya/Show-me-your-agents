@@ -106,9 +106,12 @@ describe("CampaignCalendar", () => {
     expect(screen.queryByText("Skip the Queue Reel")).not.toBeInTheDocument();
 
     fireEvent.click(firstSunnyDot);
-    expect(screen.getByText("Skip the Queue Reel")).toBeInTheDocument();
-    expect(screen.getByText(/Lunch Rush Recovery · Sunny Cafe · Instagram/)).toBeInTheDocument();
-    expect(screen.getByText(localDateLabel(3))).toHaveAttribute("datetime", localDate(3));
+    const details = screen.getByLabelText(`${localDateLabel(3)} campaign schedule`);
+    expect(within(details).getByText("Skip the Queue Reel")).toBeInTheDocument();
+    expect(within(details).getByText("Sunny Cafe")).toBeInTheDocument();
+    expect(within(details).getByText("Instagram")).toBeInTheDocument();
+    expect(within(details).getByText("Reel")).toBeInTheDocument();
+    expect(within(details).getByText("Campaign #11")).toBeInTheDocument();
     expect(screen.getByLabelText("Publishing status for Skip the Queue Reel")).toHaveValue("scheduled");
   });
 
