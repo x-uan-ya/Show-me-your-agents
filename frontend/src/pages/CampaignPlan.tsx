@@ -436,7 +436,10 @@ export function CampaignPlan({
           marketing_brief_id: persistedBrief.id,
           analysis_run_id: keyInsight.analysis_run_id,
           primary_insight_id: keyInsight.id,
-          supporting_insight_ids: activeInsights.map((insight) => insight.id),
+          supporting_insight_ids: activeInsights
+            .filter((insight) => insight.id !== keyInsight.id)
+            .slice(0, 128)
+            .map((insight) => insight.id),
           start_date: startDate,
           gap: response,
         },

@@ -163,7 +163,7 @@ class CampaignGenerationService:
                 *payload.supporting_insight_ids,
             ])
             if insight_id in valid_insight_ids
-        ]
+        ][:128]
         content = [
             (1, channels[0], f"Customer proof: {matched_value}", "Awareness", None),
             (
