@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -43,6 +43,13 @@ describe("TeamAccess", () => {
       role: "admin",
       is_active: true,
       created_at: admin.created_at,
+    }, {
+      user_id: 2,
+      email: "creator@example.test",
+      display_name: "Second Creator",
+      role: "admin",
+      is_active: true,
+      created_at: admin.created_at,
     }]);
     vi.mocked(api.listClients).mockResolvedValue([{
       id: 22,
@@ -76,6 +83,13 @@ describe("TeamAccess", () => {
 
     render(<TeamAccess />);
     await screen.findByText("Agency Admin");
+    expect(
+      within(screen.getByLabelText("Workspace role")).queryByRole("option", { name: "admin" }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(screen.getByLabelText("Team member")).queryByRole("option", { name: "Second Creator" }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Remove" })).not.toBeInTheDocument();
     await user.type(screen.getByLabelText("Member email"), teammate.email);
     await user.selectOptions(screen.getByLabelText("Workspace role"), "reviewer");
     await user.click(screen.getByRole("button", { name: "Add member" }));

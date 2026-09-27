@@ -75,7 +75,7 @@ def access_context_for_workspace(
     if membership is None or membership.workspace is None:
         raise HTTPException(
             status.HTTP_403_FORBIDDEN,
-            "No active workspace membership",
+            "Workspace access has not been granted. Contact an administrator.",
         )
     return AccessContext(
         user=user,

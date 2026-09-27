@@ -51,7 +51,7 @@ describe("AuthenticatedApp", () => {
     render(<AuthenticatedApp />);
 
     expect(await screen.findByRole("heading", { name: /Turn customer evidence/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Start your workspace/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Request access/i })).toBeInTheDocument();
   });
 
   it("opens Login for a directly requested protected view", async () => {
@@ -89,11 +89,11 @@ describe("AuthenticatedApp", () => {
     vi.spyOn(api, "currentUser").mockRejectedValue(new Error("401"));
     const register = vi.spyOn(api, "register").mockResolvedValue(pendingRegistration);
     const verifyRegistration = vi.spyOn(api, "verifyRegistrationEmail").mockResolvedValue({
-      message: "Email verified. Sign in to continue.",
+      message: "Email verified. A workspace administrator must grant access before you can sign in.",
     });
     render(<AuthenticatedApp />);
 
-    await user.click(await screen.findByRole("button", { name: /Start your workspace/i }));
+    await user.click(await screen.findByRole("button", { name: /Request access/i }));
     const dialog = within(await screen.findByRole("dialog"));
     await user.type(dialog.getByLabelText("Full name"), "Sarah Tan");
     await user.type(dialog.getByLabelText("Work email"), userRecord.email);
@@ -117,7 +117,7 @@ describe("AuthenticatedApp", () => {
       "123456",
       pendingRegistration.verification_token,
     ));
-    expect(await screen.findByText("Email verified. Sign in to continue.")).toBeInTheDocument();
+    expect(await screen.findByText("Email verified. A workspace administrator must grant access before you can sign in.")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Sign in to Campaign Intelligence" })).toBeInTheDocument();
     expect(window.sessionStorage.getItem("campaign-intelligence:pending-registration")).toBeNull();
   });
@@ -131,7 +131,7 @@ describe("AuthenticatedApp", () => {
     );
     render(<AuthenticatedApp />);
 
-    await user.click(await screen.findByRole("button", { name: /Start your workspace/i }));
+    await user.click(await screen.findByRole("button", { name: /Request access/i }));
     const dialog = within(await screen.findByRole("dialog"));
     await user.type(dialog.getByLabelText("Full name"), "Sarah Tan");
     await user.type(dialog.getByLabelText("Work email"), userRecord.email);
@@ -162,7 +162,7 @@ describe("AuthenticatedApp", () => {
     });
     render(<AuthenticatedApp />);
 
-    await user.click(await screen.findByRole("button", { name: /Start your workspace/i }));
+    await user.click(await screen.findByRole("button", { name: /Request access/i }));
     const dialog = within(await screen.findByRole("dialog"));
     await user.type(dialog.getByLabelText("Full name"), "Sarah Tan");
     await user.type(dialog.getByLabelText("Work email"), userRecord.email);
@@ -191,7 +191,7 @@ describe("AuthenticatedApp", () => {
     vi.spyOn(api, "currentUser").mockRejectedValue(new Error("401"));
     render(<AuthenticatedApp />);
 
-    await userEvent.click(await screen.findByRole("button", { name: /Start your workspace/i }));
+    await userEvent.click(await screen.findByRole("button", { name: /Request access/i }));
     const dialog = within(await screen.findByRole("dialog"));
     expect(await dialog.findByRole("heading", { name: "Verify your email" })).toBeInTheDocument();
     expect(dialog.getByLabelText("Work email")).toHaveValue(userRecord.email);
@@ -217,6 +217,28 @@ describe("AuthenticatedApp", () => {
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Invalid email or password.");
     expect(screen.queryByText("backend detail")).not.toBeInTheDocument();
+  });
+
+  it("explains when a verified customer is waiting for creator access", async () => {
+    const user = userEvent.setup();
+    window.location.hash = "#/login";
+    vi.spyOn(api, "currentUser").mockRejectedValue(new Error("401"));
+    vi.spyOn(api, "login").mockRejectedValue(
+      new ApiError(
+        "Workspace access has not been granted. Contact an administrator.",
+        403,
+      ),
+    );
+    render(<AuthenticatedApp />);
+
+    const dialog = within(await screen.findByRole("dialog"));
+    await user.type(dialog.getByLabelText("Work email"), userRecord.email);
+    await user.type(dialog.getByLabelText("Password"), "ValidPassword!2026");
+    await user.click(dialog.getByRole("button", { name: "Sign in to workspace" }));
+
+    expect(await dialog.findByRole("alert")).toHaveTextContent(
+      "Your email is verified, but a creator admin has not granted workspace access yet.",
+    );
   });
 
   it("shows a useful message when password login is rate-limited", async () => {
@@ -266,7 +288,7 @@ describe("AuthenticatedApp", () => {
     );
     render(<AuthenticatedApp />);
 
-    await user.click(await screen.findByRole("button", { name: /Start your workspace/i }));
+    await user.click(await screen.findByRole("button", { name: /Request access/i }));
     const dialog = within(await screen.findByRole("dialog"));
     await user.type(dialog.getByLabelText("Full name"), "Sarah Tan");
     await user.type(dialog.getByLabelText("Work email"), userRecord.email);

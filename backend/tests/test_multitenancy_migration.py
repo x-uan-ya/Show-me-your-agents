@@ -159,3 +159,28 @@ def test_restart_migration_does_not_trust_a_pending_registration():
         assert connection.scalar(
             text("SELECT email_verified FROM users WHERE id = 1")
         ) == 0
+
+
+def test_restart_migration_keeps_verified_public_registration_unassigned():
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(bind=engine)
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                "INSERT INTO users "
+                "(id, email, password_hash, display_name, role, is_active, email_verified) "
+                "VALUES (1, 'verified@example.test', 'hash', 'Verified', 'viewer', 1, 1)"
+            )
+        )
+
+    migrate_sqlite_multitenancy(engine)
+    migrate_sqlite_multitenancy(engine)
+
+    with engine.connect() as connection:
+        assert connection.scalar(
+            text(
+                "SELECT count(*) FROM workspace_memberships "
+                "WHERE user_id = 1"
+            )
+        ) == 0
+        assert connection.scalar(text("SELECT count(*) FROM workspaces")) == 0

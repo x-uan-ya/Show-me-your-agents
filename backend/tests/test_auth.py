@@ -196,7 +196,7 @@ def test_registration_stays_untrusted_until_email_is_verified(auth_env, monkeypa
         assert user.is_active is True
         assert user.email_verified is False
         assert user.role == "viewer"
-        assert user.pending_workspace_name == "New User's Workspace"
+        assert user.pending_workspace_name is None
         assert user.registration_token_hash != registration["verification_token"]
         assert verify_password("RegistrationPassword!2026", user.password_hash)
         assert db.scalar(
@@ -212,14 +212,16 @@ def test_registration_stays_untrusted_until_email_is_verified(auth_env, monkeypa
 
     verified = _verify_registration(client, registration, delivered[0][1])
     assert verified.status_code == 200
-    assert verified.json()["message"] == "Email verified. Sign in to continue."
+    assert verified.json()["message"] == (
+        "Email verified. A workspace administrator must grant access before you can sign in."
+    )
     assert "set-cookie" not in verified.headers
 
     with session_factory() as db:
         user = db.scalar(select(User).where(User.email == registration["email"]))
         assert user is not None
         assert user.email_verified is True
-        assert user.role == "admin"
+        assert user.role == "viewer"
         assert user.pending_workspace_name is None
         assert user.registration_token_hash is None
         challenge = db.scalar(
@@ -237,16 +239,17 @@ def test_registration_stays_untrusted_until_email_is_verified(auth_env, monkeypa
         membership = db.scalar(
             select(WorkspaceMembership).where(WorkspaceMembership.user_id == user.id)
         )
-        assert membership is not None
-        assert membership.role == "admin"
-        assert membership.workspace.name == "New User's Workspace"
+        assert membership is None
 
     # Registration verification is single-use and never signs the user in implicitly.
     assert _verify_registration(client, registration, delivered[0][1]).status_code == 400
-    logged_in = _login(client, registration["email"], "RegistrationPassword!2026")
-    assert logged_in.status_code == 200
-    assert logged_in.json()["role"] == "admin"
-    assert logged_in.json()["workspace_name"] == "New User's Workspace"
+    blocked_until_assigned = _login(
+        client, registration["email"], "RegistrationPassword!2026"
+    )
+    assert blocked_until_assigned.status_code == 403
+    assert blocked_until_assigned.json()["detail"] == (
+        "Workspace access has not been granted. Contact an administrator."
+    )
 
 
 def test_duplicate_registration_is_rejected(auth_env):
@@ -441,7 +444,13 @@ def test_duplicate_pending_registration_reuses_user_and_requires_latest_token(
 
     assert _verify_registration(client, second, delivered[0][1]).status_code == 200
     assert _login(client, second["email"], "FirstRegistration!2026").status_code == 401
-    assert _login(client, second["email"], "SecondRegistration!2026").status_code == 200
+    awaiting_access = _login(
+        client, second["email"], "SecondRegistration!2026"
+    )
+    assert awaiting_access.status_code == 403
+    assert awaiting_access.json()["detail"] == (
+        "Workspace access has not been granted. Contact an administrator."
+    )
 
 
 def test_invalid_password_is_rejected(auth_env):
@@ -650,8 +659,12 @@ def test_admin_cannot_add_unverified_user_then_can_add_after_verification(
         own_membership = db.scalar(
             select(WorkspaceMembership).where(WorkspaceMembership.user_id == invited.id)
         )
-        assert own_membership is not None
-        invited_workspace_id = own_membership.workspace_id
+        assert own_membership is None
+
+    pending_access = _login(
+        client, "invited@example.test", "RegistrationPassword!2026"
+    )
+    assert pending_access.status_code == 403
 
     member = client.post(
         "/api/workspaces/current/members",
@@ -667,18 +680,6 @@ def test_admin_cannot_add_unverified_user_then_can_add_after_verification(
     assert _login(
         client, "invited@example.test", "RegistrationPassword!2026"
     ).status_code == 200
-    own_workspace = client.post(
-        "/api/auth/workspace", json={"workspace_id": invited_workspace_id}
-    )
-    assert own_workspace.status_code == 200
-    assert client.get(
-        "/api/clients", headers={"X-Workspace-ID": str(invited_workspace_id)}
-    ).json() == []
-    switched = client.post(
-        "/api/auth/workspace", json={"workspace_id": ids["workspace_a"]}
-    )
-    assert switched.status_code == 200
-    assert switched.json()["role"] == "reviewer"
     headers = {"X-Workspace-ID": str(ids["workspace_a"])}
     assert [item["id"] for item in client.get("/api/clients", headers=headers).json()] == [
         ids["a"]
@@ -686,10 +687,62 @@ def test_admin_cannot_add_unverified_user_then_can_add_after_verification(
 
     assert _login(client, "admin@example.test").status_code == 200
     assert client.delete(f"/api/workspaces/current/members/{invited_id}").status_code == 204
-    assert _login(
+    removed_login = _login(
         client, "invited@example.test", "RegistrationPassword!2026"
-    ).status_code == 200
-    assert client.get("/api/clients", headers=headers).status_code == 403
+    )
+    assert removed_login.status_code == 403
+    assert removed_login.json()["detail"] == (
+        "Workspace access has not been granted. Contact an administrator."
+    )
+
+
+def test_team_access_cannot_grant_or_modify_creator_admin(auth_env):
+    client, ids = auth_env
+    session_factory = ids["session_factory"]
+    with session_factory() as db:
+        creator = User(
+            email="creator@example.test",
+            password_hash=hash_password(PASSWORD),
+            display_name="Second Creator",
+            role="admin",
+            is_active=True,
+            email_verified=True,
+        )
+        db.add(creator)
+        db.flush()
+        db.add(
+            WorkspaceMembership(
+                user_id=creator.id,
+                workspace_id=ids["workspace_a"],
+                role="admin",
+                is_active=True,
+            )
+        )
+        db.commit()
+        creator_id = creator.id
+
+    assert _login(client, "admin@example.test").status_code == 200
+
+    grant_admin = client.post(
+        "/api/workspaces/current/members",
+        json={"email": "strategist@example.test", "role": "admin"},
+    )
+    assert grant_admin.status_code == 422
+
+    demote_creator = client.post(
+        "/api/workspaces/current/members",
+        json={"email": "creator@example.test", "role": "viewer"},
+    )
+    assert demote_creator.status_code == 403
+    assert demote_creator.json()["detail"] == (
+        "Creator admin memberships cannot be changed through Team Access"
+    )
+
+    remove_creator = client.delete(f"/api/workspaces/current/members/{creator_id}")
+    assert remove_creator.status_code == 403
+    assert remove_creator.json()["detail"] == (
+        "Creator admin memberships cannot be removed through Team Access"
+    )
 
 
 def test_logout_clears_cookie_and_subsequent_request_is_unauthenticated(auth_env):

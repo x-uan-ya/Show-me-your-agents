@@ -2,7 +2,7 @@ import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { api } from "../api/client";
+import { ApiError, api } from "../api/client";
 import type {
   CampaignCreateInput,
   CampaignGapResponse,
@@ -296,12 +296,31 @@ describe("CampaignPlan", () => {
         marketing_brief_id: 41,
         analysis_run_id: insight.analysis_run_id,
         primary_insight_id: insight.id,
-        supporting_insight_ids: [insight.id],
+        supporting_insight_ids: [],
         gap,
       }),
       expect.any(AbortSignal),
     );
     expect(screen.getByText(/Saved to backend as Campaign #501/)).toBeInTheDocument();
+  });
+
+  it("limits supporting insights to the backend maximum in relevance order", async () => {
+    const manyInsights = Array.from({ length: 190 }, (_, index) => ({
+      ...insight,
+      id: index + 1,
+      title: `Insight ${index + 1}`,
+      confidence: index === 189 ? 0.99 : insight.confidence,
+    }));
+    const user = userEvent.setup();
+    renderPlan(manyInsights);
+
+    await generate(user);
+
+    const payload = vi.mocked(api.generateCampaign).mock.calls[0][1];
+    expect(payload.supporting_insight_ids).toHaveLength(128);
+    expect(payload.supporting_insight_ids).toEqual(
+      Array.from({ length: 128 }, (_, index) => index + 1),
+    );
   });
 
   it("retrieves a saved campaign and content items after in-memory insights are gone", async () => {
@@ -559,6 +578,23 @@ describe("CampaignPlan", () => {
     );
     expect(screen.queryByText(/Saved to backend as Campaign/)).not.toBeInTheDocument();
     expect(errorLog).toHaveBeenCalledWith("Backend campaign generation failed", error);
+  });
+
+  it("shows the backend validation detail when campaign generation is rejected", async () => {
+    const error = new ApiError(
+      "List should have at most 128 items after validation, not 190",
+      422,
+    );
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.mocked(api.generateCampaign).mockRejectedValue(error);
+    const user = userEvent.setup();
+    renderPlan();
+
+    await generate(user);
+
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "The campaign request was rejected: List should have at most 128 items after validation, not 190",
+    );
   });
 
   it("aborts pending analysis on client changes and ignores late results", async () => {

@@ -31,7 +31,8 @@ def _provider_returning(content: str, status_code: int = 200) -> HackathonAIProv
 
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.url.path == "/api/chat"
-        assert request.headers["Authorization"] == "Bearer test-key"
+        assert request.headers["X-API-Key"] == "test-key"
+        assert "Authorization" not in request.headers
         request_body = json.loads(request.content)
         assert request_body["format"] == "json"
         assert request_body["options"] == {"temperature": 0, "num_predict": 1800}

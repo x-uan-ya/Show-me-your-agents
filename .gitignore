@@ -13,3 +13,20 @@ node_modules/
 # OS / editor cruft
 .DS_Store
 Thumbs.db
+# Dependencies
+**/node_modules/
+
+# Build and test caches
+**/.vite/
+**/dist/
+**/*.tsbuildinfo
+**/coverage/
+
+# Local databases
+**/*.db
+**/*.sqlite
+**/*.sqlite3
+
+# Python caches
+**/__pycache__/
+**/.pytest_cache/

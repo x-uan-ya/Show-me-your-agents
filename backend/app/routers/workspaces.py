@@ -84,6 +84,17 @@ def add_workspace_member(
             status.HTTP_422_UNPROCESSABLE_CONTENT,
             "Use another workspace admin to change your own membership",
         )
+    existing_membership = db.scalar(
+        select(WorkspaceMembership).where(
+            WorkspaceMembership.user_id == user.id,
+            WorkspaceMembership.workspace_id == access.workspace_id,
+        )
+    )
+    if existing_membership is not None and existing_membership.role == "admin":
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            "Creator admin memberships cannot be changed through Team Access",
+        )
     membership = repo.add_workspace_membership(
         user.id, access.workspace_id, payload.role
     )
@@ -108,7 +119,14 @@ def remove_workspace_member(
             status.HTTP_422_UNPROCESSABLE_CONTENT,
             "You cannot remove your own active workspace membership",
         )
-    UserRepository(db).remove_workspace_membership(user_id, access.workspace_id)
+    repo = UserRepository(db)
+    membership = repo.workspace_membership(user_id, access.workspace_id)
+    if membership is not None and membership.role == "admin":
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            "Creator admin memberships cannot be removed through Team Access",
+        )
+    repo.remove_workspace_membership(user_id, access.workspace_id)
 
 
 @router.get(

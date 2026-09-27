@@ -215,6 +215,98 @@ def test_campaign_survives_new_request_and_returns_children(env) -> None:
     assert [campaign["id"] for campaign in listed.json()] == [created["id"]]
 
 
+def test_campaign_generation_bounds_merged_supporting_insights(env) -> None:
+    client, session_factory = env
+    client_id = _client(client, "Bounded Campaign")
+    brief = _brief(client, client_id)
+
+    session = session_factory()
+    try:
+        dataset = Dataset(
+            client_id=client_id,
+            name="Large campaign evidence set",
+            source_type="test",
+            status="ready",
+        )
+        session.add(dataset)
+        session.flush()
+        run = AnalysisRun(
+            client_id=client_id,
+            dataset_id=dataset.id,
+            status="completed",
+            model_provider="mock",
+        )
+        session.add(run)
+        session.flush()
+        insights = [
+            CustomerInsight(
+                client_id=client_id,
+                analysis_run_id=run.id,
+                title=f"Campaign insight {index}",
+                summary=f"Summary {index}",
+                category="PURCHASE_DRIVER",
+                confidence=0.9,
+                evidence_count=1,
+            )
+            for index in range(136)
+        ]
+        session.add_all(insights)
+        session.commit()
+        run_id = run.id
+        insight_ids = [item.id for item in insights]
+    finally:
+        session.close()
+
+    response = client.post(
+        f"/api/clients/{client_id}/campaigns/generate",
+        json={
+            "marketing_brief_id": brief["id"],
+            "analysis_run_id": run_id,
+            "primary_insight_id": insight_ids[0],
+            "supporting_insight_ids": insight_ids[:128],
+            "gap": {
+                "client_id": client_id,
+                "campaign": {
+                    "campaign_id": "TEST-CAMPAIGN",
+                    "objective": "Increase trials",
+                    "target_audience": "Singapore SME owners",
+                    "active_message": "Work smarter",
+                    "channel": "LinkedIn",
+                },
+                "analysis": {
+                    "alignment": "partial",
+                    "summary": "The message needs more customer proof.",
+                    "matched_customer_values": ["Fast setup"],
+                    "message_gaps": ["Customer proof is missing"],
+                    "recommended_actions": ["Add customer proof"],
+                    "supporting_insight_ids": insight_ids[128:],
+                },
+            },
+        },
+    )
+
+    assert response.status_code == 201
+    supporting_ids = response.json()["campaign"]["supporting_insight_ids"]
+    assert len(supporting_ids) == 128
+    assert supporting_ids[:9] == [insight_ids[0], *insight_ids[128:]]
+
+
+def test_campaign_generation_rejects_more_than_128_requested_insights(env) -> None:
+    client, _ = env
+    client_id = _client(client, "Oversized Campaign")
+
+    response = client.post(
+        f"/api/clients/{client_id}/campaigns/generate",
+        json={
+            "marketing_brief_id": 1,
+            "supporting_insight_ids": list(range(1, 130)),
+        },
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"][0]["type"] == "too_long"
+
+
 def test_campaigns_are_isolated_by_client(env) -> None:
     client, _ = env
     owner_id = _client(client, "Owner")

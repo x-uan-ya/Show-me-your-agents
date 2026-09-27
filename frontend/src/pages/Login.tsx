@@ -257,6 +257,11 @@ export function AuthDialog({ mode, onModeChange, onClose }: Props) {
           setError("Too many verification code requests. Please try again later.");
         }
       } else if (
+        mode === "login"
+        && message.includes("Workspace access has not been granted")
+      ) {
+        setError("Your email is verified, but a creator admin has not granted workspace access yet.");
+      } else if (
         mode === "register"
         && registrationStep === "details"
         && message.toLowerCase().includes("already exists")
@@ -332,18 +337,18 @@ export function AuthDialog({ mode, onModeChange, onClose }: Props) {
             <span className="landing-kicker">
               {registrationVerification
                 ? "Check your inbox"
-                : mode === "register" ? "Start your workspace" : flowCopy.kicker}
+                : mode === "register" ? "Request workspace access" : flowCopy.kicker}
             </span>
             <h1 id="auth-title">
               {registrationVerification
                 ? "Verify your email"
-                : mode === "register" ? "Create your agency account" : flowCopy.title}
+                : mode === "register" ? "Create your customer account" : flowCopy.title}
             </h1>
             <p>
               {registrationVerification
                 ? "We sent a six-digit verification code to your email. It expires in 10 minutes."
                 : mode === "register"
-                  ? "Use your work email. Your workspace is created after verification."
+                  ? "Use your work email. After verification, a creator admin will grant access to the appropriate customer workspace."
                   : flowCopy.description}
             </p>
           </header>

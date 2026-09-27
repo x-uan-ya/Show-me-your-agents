@@ -138,7 +138,7 @@ vendor SDK. A factory selects the concrete provider from configuration:
   feedback with transparent heuristics. It requires no credentials and avoids
   unnecessary model calls while building and testing the pipeline. Default.
 - **HackathonAIProvider** — the production path. It calls the organiser-provided
-  gateway (an Ollama-native API at `POST /api/chat` with Bearer auth) which
+  gateway (an Ollama-native API at `POST /api/chat` with `X-API-Key` auth) which
   fronts **AWS Bedrock Claude Sonnet 4.5**. It sends the framed
   system/customer-data prompt, extracts the JSON insight contract from the
   model's reply (handling markdown fences), coerces evidence ids, and validates
@@ -208,8 +208,10 @@ and using Trial vs Retention works without a separate browser CORS setup.
 
 Authentication uses persistent database users. New users can register with a
 name, email and password from the public product homepage. The account remains
-untrusted until the user enters the single-use email verification code; only
-then is the new, isolated agency workspace and its admin membership created.
+untrusted until the user enters the single-use email verification code. Public
+registration never creates a workspace or grants the admin role: a creator
+admin must add the verified customer to the existing workspace as strategist,
+reviewer, or viewer before that customer can sign in.
 After setup, create the local admin, strategist and reviewer demo accounts from
 the `backend` directory:
 
@@ -221,9 +223,20 @@ The command securely prompts for a demo password (or reads
 `DEMO_USER_PASSWORD`) and prints the three non-production login email addresses.
 It never writes the password into frontend source. Admin can access every client
 inside the active workspace only; strategist and reviewer are assigned to the
-first existing client when present. Workspace admins can then use **Team access**
-to add another registered and email-verified user, assign a per-client role, or
-revoke access.
+first existing client when present. Creator admins can then use **Team access**
+to add another registered and email-verified customer, assign a per-client role,
+or revoke access. Team Access cannot grant, demote, or remove creator-admin
+memberships.
+
+Additional internal creators are promoted only through the trusted backend
+environment after email verification:
+
+```bash
+.venv/bin/python -m app.scripts.grant_creator_admin \
+  creator@example.com --workspace-id 1
+```
+
+This command is intentionally unavailable through the public web API.
 Production startup fails closed unless `AUTH_SECRET` is explicitly set to at
 least 32 random characters, `AUTH_COOKIE_SECURE=true`, and `CORS_ORIGINS` is an
 explicit allowlist without `*`. Production also requires SMTP OTP delivery with
