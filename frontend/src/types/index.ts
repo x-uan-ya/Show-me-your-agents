@@ -53,6 +53,13 @@ export interface WorkspaceMember {
   created_at: string;
 }
 
+export interface PendingWorkspaceUser {
+  user_id: number;
+  email: string;
+  display_name: string;
+  created_at: string;
+}
+
 export interface ClientMember {
   user_id: number;
   client_id: number;

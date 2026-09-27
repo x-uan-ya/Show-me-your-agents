@@ -24,6 +24,7 @@ vi.mock("../auth/AuthContext", () => ({
 vi.mock("../api/client", () => ({
   api: {
     listWorkspaceMembers: vi.fn(),
+    listPendingWorkspaceUsers: vi.fn(),
     listClients: vi.fn(),
     listClientMembers: vi.fn(),
     addWorkspaceMember: vi.fn(),
@@ -51,6 +52,7 @@ describe("TeamAccess", () => {
       is_active: true,
       created_at: admin.created_at,
     }]);
+    vi.mocked(api.listPendingWorkspaceUsers).mockResolvedValue([]);
     vi.mocked(api.listClients).mockResolvedValue([{
       id: 22,
       workspace_id: 10,
@@ -106,5 +108,34 @@ describe("TeamAccess", () => {
       "reviewer",
     ));
     expect(await screen.findByRole("cell", { name: "Harbour Cafe" })).toBeInTheDocument();
+  });
+
+  it("lists and approves a verified account waiting for creator access", async () => {
+    const user = userEvent.setup();
+    const pending = {
+      user_id: 8,
+      email: "pending@example.test",
+      display_name: "Pending Customer",
+      created_at: admin.created_at,
+    };
+    const approved = {
+      ...pending,
+      role: "strategist" as const,
+      is_active: true,
+    };
+    vi.mocked(api.listPendingWorkspaceUsers).mockResolvedValue([pending]);
+    vi.mocked(api.addWorkspaceMember).mockResolvedValue(approved);
+
+    render(<TeamAccess />);
+
+    expect(await screen.findByText("Pending Customer")).toBeInTheDocument();
+    await user.selectOptions(screen.getByLabelText("Role for Pending Customer"), "strategist");
+    await user.click(screen.getByRole("button", { name: "Approve Pending Customer" }));
+
+    await waitFor(() => expect(api.addWorkspaceMember).toHaveBeenCalledWith(
+      pending.email,
+      "strategist",
+    ));
+    expect(screen.queryByRole("button", { name: "Approve Pending Customer" })).not.toBeInTheDocument();
   });
 });

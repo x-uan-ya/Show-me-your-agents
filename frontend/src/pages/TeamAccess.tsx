@@ -6,6 +6,7 @@ import type {
   Client,
   ClientMember,
   ClientRole,
+  PendingWorkspaceUser,
   WorkspaceMember,
 } from "../types";
 
@@ -17,6 +18,8 @@ function assignmentKey(clientId: number, userId: number): string {
 
 export function TeamAccess() {
   const { currentUser } = useAuth();
+  const [pendingUsers, setPendingUsers] = useState<PendingWorkspaceUser[]>([]);
+  const [pendingRoles, setPendingRoles] = useState<Record<number, ClientRole>>({});
   const [members, setMembers] = useState<WorkspaceMember[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [assignments, setAssignments] = useState<Map<string, ClientMember>>(new Map());
@@ -35,13 +38,15 @@ export function TeamAccess() {
     setError(null);
     Promise.all([
       api.listWorkspaceMembers(controller.signal),
+      api.listPendingWorkspaceUsers(controller.signal),
       api.listClients(controller.signal),
-    ]).then(async ([nextMembers, nextClients]) => {
+    ]).then(async ([nextMembers, nextPendingUsers, nextClients]) => {
       const clientAssignments = await Promise.all(
         nextClients.map((client) => api.listClientMembers(client.id, controller.signal)),
       );
       if (controller.signal.aborted) return;
       setMembers(nextMembers);
+      setPendingUsers(nextPendingUsers);
       setClients(nextClients);
       setSelectedUserId(String(nextMembers.find(
         (member) => member.user_id !== currentUser?.id && member.role !== "admin",
@@ -83,6 +88,28 @@ export function TeamAccess() {
       if (!isAbortError(reason)) {
         setError("No active account was found for that email, or access could not be updated.");
       }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const approvePendingUser = async (pendingUser: PendingWorkspaceUser) => {
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const role = pendingRoles[pendingUser.user_id] ?? "viewer";
+      const member = await api.addWorkspaceMember(pendingUser.email, role);
+      setPendingUsers((current) => current.filter(
+        (candidate) => candidate.user_id !== pendingUser.user_id,
+      ));
+      setMembers((current) => [
+        ...current.filter((candidate) => candidate.user_id !== member.user_id),
+        member,
+      ].sort((left, right) => left.display_name.localeCompare(right.display_name)));
+      setSelectedUserId(String(member.user_id));
+    } catch (reason) {
+      if (!isAbortError(reason)) setError("The pending account could not be approved.");
     } finally {
       setBusy(false);
     }
@@ -165,6 +192,53 @@ export function TeamAccess() {
         {error && <p role="alert" className="rounded-xl border border-amber-700/50 bg-amber-950/30 p-4 text-sm text-amber-200">{error}</p>}
         {loading ? <p role="status" className="py-8 text-center text-slate-400">Loading team access…</p> : (
           <>
+            <section className="surface-card p-5 sm:p-6">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="section-kicker">Creator approval</p>
+                  <h2 className="mt-1 text-xl font-semibold text-white">Pending access requests</h2>
+                  <p className="mt-2 text-sm text-slate-400">These customers have verified their email but cannot sign in until a creator admin approves workspace access.</p>
+                </div>
+                <span className="context-pill">{pendingUsers.length} pending</span>
+              </div>
+              {pendingUsers.length === 0 ? (
+                <p className="py-8 text-center text-sm text-slate-400">No verified accounts are waiting for approval.</p>
+              ) : (
+                <div className="mt-5 overflow-x-auto">
+                  <table className="campaign-records-table">
+                    <thead><tr><th>Customer</th><th>Workspace role</th><th><span className="sr-only">Actions</span></th></tr></thead>
+                    <tbody>{pendingUsers.map((pendingUser) => (
+                      <tr key={pendingUser.user_id}>
+                        <td><strong>{pendingUser.display_name}</strong><small>{pendingUser.email}</small></td>
+                        <td>
+                          <select
+                            aria-label={`Role for ${pendingUser.display_name}`}
+                            value={pendingRoles[pendingUser.user_id] ?? "viewer"}
+                            onChange={(event) => setPendingRoles((current) => ({
+                              ...current,
+                              [pendingUser.user_id]: event.target.value as ClientRole,
+                            }))}
+                          >
+                            {CLIENT_ROLES.map((role) => <option key={role} value={role}>{role}</option>)}
+                          </select>
+                        </td>
+                        <td className="text-right">
+                          <button
+                            className="primary-button"
+                            type="button"
+                            disabled={busy}
+                            onClick={() => void approvePendingUser(pendingUser)}
+                          >
+                            Approve {pendingUser.display_name}
+                          </button>
+                        </td>
+                      </tr>
+                    ))}</tbody>
+                  </table>
+                </div>
+              )}
+            </section>
+
             <section className="surface-card p-5 sm:p-6">
               <p className="section-kicker">Workspace membership</p>
               <h2 className="mt-1 text-xl font-semibold text-white">Add an existing account</h2>

@@ -22,6 +22,13 @@ class WorkspaceMemberRead(BaseModel):
     created_at: datetime
 
 
+class PendingWorkspaceUserRead(BaseModel):
+    user_id: int
+    email: str
+    display_name: str
+    created_at: datetime
+
+
 class WorkspaceMemberAdd(BaseModel):
     model_config = ConfigDict(str_strip_whitespace=True)
 
