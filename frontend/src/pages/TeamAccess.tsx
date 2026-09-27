@@ -6,12 +6,10 @@ import type {
   Client,
   ClientMember,
   ClientRole,
-  UserRole,
   WorkspaceMember,
 } from "../types";
 
 const CLIENT_ROLES: ClientRole[] = ["strategist", "reviewer", "viewer"];
-const WORKSPACE_ROLES: UserRole[] = ["admin", "strategist", "reviewer", "viewer"];
 
 function assignmentKey(clientId: number, userId: number): string {
   return `${clientId}:${userId}`;
@@ -23,7 +21,7 @@ export function TeamAccess() {
   const [clients, setClients] = useState<Client[]>([]);
   const [assignments, setAssignments] = useState<Map<string, ClientMember>>(new Map());
   const [email, setEmail] = useState("");
-  const [workspaceRole, setWorkspaceRole] = useState<UserRole>("viewer");
+  const [workspaceRole, setWorkspaceRole] = useState<ClientRole>("viewer");
   const [selectedUserId, setSelectedUserId] = useState("");
   const [selectedClientId, setSelectedClientId] = useState("");
   const [clientRole, setClientRole] = useState<ClientRole>("viewer");
@@ -45,7 +43,9 @@ export function TeamAccess() {
       if (controller.signal.aborted) return;
       setMembers(nextMembers);
       setClients(nextClients);
-      setSelectedUserId(String(nextMembers.find((member) => member.user_id !== currentUser?.id)?.user_id ?? ""));
+      setSelectedUserId(String(nextMembers.find(
+        (member) => member.user_id !== currentUser?.id && member.role !== "admin",
+      )?.user_id ?? ""));
       setSelectedClientId(String(nextClients[0]?.id ?? ""));
       setAssignments(new Map(
         clientAssignments.flat().map((assignment) => [
@@ -168,11 +168,11 @@ export function TeamAccess() {
             <section className="surface-card p-5 sm:p-6">
               <p className="section-kicker">Workspace membership</p>
               <h2 className="mt-1 text-xl font-semibold text-white">Add an existing account</h2>
-              <p className="mt-2 text-sm text-slate-400">The teammate must register and verify their email first. Viewer, strategist and reviewer access remains client-specific; workspace admins can access every client in this workspace.</p>
+              <p className="mt-2 text-sm text-slate-400">Customers must register and verify their email first. Team Access can grant customer roles only; creator-admin accounts are managed separately.</p>
               <form className="mt-5 grid gap-3 md:grid-cols-[minmax(0,1fr)_11rem_auto]" onSubmit={(event) => void addMember(event)}>
                 <input aria-label="Member email" type="email" required placeholder="teammate@agency.com" value={email} onChange={(event) => setEmail(event.target.value)} />
-                <select aria-label="Workspace role" value={workspaceRole} onChange={(event) => setWorkspaceRole(event.target.value as UserRole)}>
-                  {WORKSPACE_ROLES.map((role) => <option key={role} value={role}>{role}</option>)}
+                <select aria-label="Workspace role" value={workspaceRole} onChange={(event) => setWorkspaceRole(event.target.value as ClientRole)}>
+                  {CLIENT_ROLES.map((role) => <option key={role} value={role}>{role}</option>)}
                 </select>
                 <button className="primary-button" type="submit" disabled={busy || !email.trim()}>Add member</button>
               </form>
@@ -183,7 +183,7 @@ export function TeamAccess() {
                     <tr key={member.user_id}>
                       <td><strong>{member.display_name}</strong><small>{member.email}</small></td>
                       <td className="capitalize">{member.role}</td>
-                      <td className="text-right">{member.user_id !== currentUser.id && <button className="danger-button" type="button" disabled={busy} onClick={() => void removeMember(member)}>Remove</button>}</td>
+                      <td className="text-right">{member.user_id !== currentUser.id && member.role !== "admin" && <button className="danger-button" type="button" disabled={busy} onClick={() => void removeMember(member)}>Remove</button>}</td>
                     </tr>
                   ))}</tbody>
                 </table>
@@ -196,7 +196,7 @@ export function TeamAccess() {
               <form className="mt-5 grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_10rem_auto]" onSubmit={(event) => void assignClient(event)}>
                 <select aria-label="Team member" value={selectedUserId} onChange={(event) => setSelectedUserId(event.target.value)} required>
                   <option value="">Select member</option>
-                  {members.filter((member) => member.user_id !== currentUser.id).map((member) => <option key={member.user_id} value={member.user_id}>{member.display_name}</option>)}
+                  {members.filter((member) => member.user_id !== currentUser.id && member.role !== "admin").map((member) => <option key={member.user_id} value={member.user_id}>{member.display_name}</option>)}
                 </select>
                 <select aria-label="Client access" value={selectedClientId} onChange={(event) => setSelectedClientId(event.target.value)} required>
                   <option value="">Select client</option>

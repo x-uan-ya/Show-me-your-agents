@@ -5,7 +5,7 @@ AWS Bedrock Claude Sonnet 4.5.
 
 Confirmed contract (probed against the live gateway):
 - Endpoint: ``POST {base}/api/chat``
-- Auth: ``Authorization: Bearer <api_key>``
+- Auth: ``X-API-Key: <api_key>``
 - Request: ``{"model": ..., "messages": [{"role","content"}], "stream": false}``
 - Response: ``{"message": {"role": "assistant", "content": "..."}, "done": true, ...}``
 
@@ -361,7 +361,7 @@ class HackathonAIProvider(AIProvider):
 
     def _post_chat(self, payload: dict[str, Any]) -> str:
         headers = {
-            "Authorization": f"Bearer {self._api_key}",
+            "X-API-Key": self._api_key,
             "Content-Type": "application/json",
         }
         url = f"{self._api_base_url}/api/chat"

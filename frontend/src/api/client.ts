@@ -27,7 +27,6 @@ import type {
   RegistrationOtpStatus,
   RegistrationPending,
   UploadResponse,
-  UserRole,
   WorkspaceMember,
   WorkflowStatus,
 } from "../types";
@@ -256,7 +255,7 @@ export const api = {
     getJson<WorkspaceMember[]>("/workspaces/current/members", signal),
   addWorkspaceMember: (
     email: string,
-    role: UserRole,
+    role: ClientRole,
     signal?: AbortSignal,
   ) => postJson<WorkspaceMember>(
     "/workspaces/current/members",

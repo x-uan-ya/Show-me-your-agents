@@ -26,7 +26,9 @@ class WorkspaceMemberAdd(BaseModel):
     model_config = ConfigDict(str_strip_whitespace=True)
 
     email: str = Field(min_length=3, max_length=320)
-    role: UserRole = "viewer"
+    # Public/admin-facing membership management may only grant customer roles.
+    # Creator-admin accounts are provisioned outside this endpoint.
+    role: ClientRole = "viewer"
 
 
 class ClientMemberWrite(BaseModel):

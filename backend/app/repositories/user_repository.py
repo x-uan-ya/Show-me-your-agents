@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.models.client import Client
 from app.models.user import ClientMembership, User
-from app.models.workspace import Workspace, WorkspaceMembership
+from app.models.workspace import WorkspaceMembership
 from app.services.auth.passwords import hash_password
 
 
@@ -16,15 +16,14 @@ class UserRepository:
     def by_email(self, email: str) -> User | None:
         return self._db.scalar(select(User).where(User.email == email.strip().casefold()))
 
-    def create_pending_workspace_owner(
+    def create_pending_user(
         self,
         email: str,
         password: str,
         display_name: str,
         registration_token_hash: str,
-        workspace_name: str | None = None,
     ) -> User:
-        """Create an unverified user without a workspace or trusted role."""
+        """Create an unverified, least-privileged user without workspace access."""
 
         cleaned_name = " ".join(display_name.split())
         user = User(
@@ -36,9 +35,7 @@ class UserRepository:
             role="viewer",
             is_active=True,
             email_verified=False,
-            pending_workspace_name=(
-                workspace_name or f"{cleaned_name}'s Workspace"
-            ).strip(),
+            pending_workspace_name=None,
             registration_token_hash=registration_token_hash,
         )
         self._db.add(user)
@@ -46,13 +43,12 @@ class UserRepository:
         self._db.refresh(user)
         return user
 
-    def replace_pending_workspace_owner(
+    def replace_pending_user(
         self,
         user: User,
         password: str,
         display_name: str,
         registration_token_hash: str,
-        workspace_name: str | None = None,
     ) -> User:
         """Replace one pending registration without creating a duplicate user."""
 
@@ -61,9 +57,8 @@ class UserRepository:
         cleaned_name = " ".join(display_name.split())
         user.password_hash = hash_password(password)
         user.display_name = cleaned_name
-        user.pending_workspace_name = (
-            workspace_name or f"{cleaned_name}'s Workspace"
-        ).strip()
+        user.role = "viewer"
+        user.pending_workspace_name = None
         user.registration_token_hash = registration_token_hash
         # Defensive revocation if an inconsistent pending user ever held a token.
         user.session_version += 1
@@ -71,33 +66,20 @@ class UserRepository:
         self._db.refresh(user)
         return user
 
-    def verify_email_and_create_workspace(self, user: User) -> WorkspaceMembership:
-        """Trust a pending identity and create its first admin workspace."""
+    def verify_email(self, user: User) -> User:
+        """Verify identity ownership without granting workspace or admin access."""
 
         if user.email_verified:
             raise ValueError("Email is already verified")
-        workspace = Workspace(
-            name=(user.pending_workspace_name or f"{user.display_name}'s Workspace").strip()
-        )
-        self._db.add(workspace)
-        self._db.flush()
-        membership = WorkspaceMembership(
-            user_id=user.id,
-            workspace_id=workspace.id,
-            role="admin",
-            is_active=True,
-        )
-        self._db.add(membership)
-        # Keep the legacy compatibility role aligned only after ownership is
-        # proven. Runtime authorisation still uses scoped memberships.
-        user.role = "admin"
+        # Public registration proves control of an email address only. Admin
+        # access is reserved for internally provisioned creator accounts.
+        user.role = "viewer"
         user.email_verified = True
         user.pending_workspace_name = None
         user.registration_token_hash = None
         self._db.commit()
         self._db.refresh(user)
-        self._db.refresh(membership)
-        return membership
+        return user
 
     def workspace_memberships(self, user_id: int) -> list[WorkspaceMembership]:
         stmt = (

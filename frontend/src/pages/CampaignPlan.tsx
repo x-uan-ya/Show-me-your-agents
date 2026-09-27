@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
-import { api, isAbortError, isRateLimitError } from "../api/client";
+import { ApiError, api, isAbortError, isRateLimitError } from "../api/client";
 import { useOptionalAuth } from "../auth/AuthContext";
 import { CAMPAIGN_CALENDAR_UPDATED_EVENT } from "../utils/campaignColors";
 import { CustomerMessageGapCard } from "../components/CustomerMessageGapCard";
@@ -28,6 +28,8 @@ interface Props {
 
 type ApprovalState = "draft" | "approved" | "rejected";
 type GenerationStatus = "idle" | "generating" | "success" | "error";
+
+const MAX_SUPPORTING_INSIGHT_IDS = 128;
 
 interface CalendarItem {
   day: string;
@@ -436,9 +438,11 @@ export function CampaignPlan({
           marketing_brief_id: persistedBrief.id,
           analysis_run_id: keyInsight.analysis_run_id,
           primary_insight_id: keyInsight.id,
+          // activeInsights is relevance-ranked, so keep the strongest evidence
+          // while respecting the backend request contract.
           supporting_insight_ids: activeInsights
             .filter((insight) => insight.id !== keyInsight.id)
-            .slice(0, 128)
+            .slice(0, MAX_SUPPORTING_INSIGHT_IDS)
             .map((insight) => insight.id),
           start_date: startDate,
           gap: response,
@@ -462,6 +466,8 @@ export function CampaignPlan({
       setGenerationError(
         isRateLimitError(error)
           ? "AI analysis usage is temporarily limited. Please wait before running another analysis."
+          : error instanceof ApiError && error.status === 422
+            ? `The campaign request was rejected: ${error.message}`
           : "The backend could not generate and save the campaign. Check the backend connection and retry.",
       );
       setGenerationStatus("error");

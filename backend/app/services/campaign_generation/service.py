@@ -19,6 +19,7 @@ from app.repositories.campaign_repository import (
 from app.schemas.campaign import (
     CampaignCreate,
     CampaignGenerateRequest,
+    MAX_SUPPORTING_INSIGHT_IDS,
 )
 from app.schemas.campaign_gap import CampaignGapResponse
 from app.services.ai.base import AIProvider
@@ -163,7 +164,7 @@ class CampaignGenerationService:
                 *payload.supporting_insight_ids,
             ])
             if insight_id in valid_insight_ids
-        ][:128]
+        ][:MAX_SUPPORTING_INSIGHT_IDS]
         content = [
             (1, channels[0], f"Customer proof: {matched_value}", "Awareness", None),
             (

@@ -115,13 +115,7 @@ def migrate_sqlite_multitenancy(target_engine: Engine) -> None:
             )
 
         needs_legacy_workspace = connection.scalar(
-            text(
-                "SELECT EXISTS(SELECT 1 FROM clients WHERE workspace_id IS NULL) "
-                "OR EXISTS("
-                "SELECT 1 FROM users u WHERE u.email_verified = 1 AND NOT EXISTS ("
-                "SELECT 1 FROM workspace_memberships wm WHERE wm.user_id = u.id"
-                "))"
-            )
+            text("SELECT EXISTS(SELECT 1 FROM clients WHERE workspace_id IS NULL)")
         )
         legacy_workspace_id: int | None = None
         if needs_legacy_workspace:
@@ -138,6 +132,9 @@ def migrate_sqlite_multitenancy(target_engine: Engine) -> None:
                     {"name": "Legacy Agency Workspace"},
                 )
                 legacy_workspace_id = int(result.lastrowid)
+            # Only this legacy-client migration may attach otherwise orphaned
+            # pre-tenancy users. A newly verified public account intentionally
+            # remains unassigned until a creator admin grants customer access.
             connection.execute(
                 text("UPDATE clients SET workspace_id = :workspace_id WHERE workspace_id IS NULL"),
                 {"workspace_id": legacy_workspace_id},

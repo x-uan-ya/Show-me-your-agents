@@ -12,6 +12,7 @@ from app.schemas.campaign_gap import CampaignGapResponse
 
 CampaignStatus = Literal["draft", "approved", "revision_requested"]
 ContentStatus = Literal["draft", "scheduled", "published", "cancelled"]
+MAX_SUPPORTING_INSIGHT_IDS = 128
 
 
 class MarketingBriefWrite(BaseModel):
@@ -124,7 +125,10 @@ class CampaignCreate(BaseModel):
     marketing_brief_id: int = Field(..., ge=1)
     analysis_run_id: int | None = Field(default=None, ge=1)
     primary_insight_id: int | None = Field(default=None, ge=1)
-    supporting_insight_ids: list[int] = Field(default_factory=list, max_length=128)
+    supporting_insight_ids: list[int] = Field(
+        default_factory=list,
+        max_length=MAX_SUPPORTING_INSIGHT_IDS,
+    )
     name: str = Field(..., min_length=1, max_length=512)
     key_message: str = Field(..., min_length=1, max_length=12000)
     message_gap: str | None = Field(default=None, max_length=12000)
@@ -191,7 +195,10 @@ class CampaignGenerateRequest(BaseModel):
     marketing_brief_id: int = Field(..., ge=1)
     analysis_run_id: int | None = Field(default=None, ge=1)
     primary_insight_id: int | None = Field(default=None, ge=1)
-    supporting_insight_ids: list[int] = Field(default_factory=list, max_length=128)
+    supporting_insight_ids: list[int] = Field(
+        default_factory=list,
+        max_length=MAX_SUPPORTING_INSIGHT_IDS,
+    )
     start_date: date | None = None
     gap: CampaignGapResponse | None = None
 

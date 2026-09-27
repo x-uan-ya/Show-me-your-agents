@@ -162,20 +162,18 @@ def register(
     token, token_hash = create_registration_token()
     try:
         if existing is None:
-            user = repo.create_pending_workspace_owner(
+            user = repo.create_pending_user(
                 payload.email,
                 payload.password,
                 payload.display_name,
                 token_hash,
-                payload.workspace_name,
             )
         else:
-            user = repo.replace_pending_workspace_owner(
+            user = repo.replace_pending_user(
                 existing,
                 payload.password,
                 payload.display_name,
                 token_hash,
-                payload.workspace_name,
             )
     except IntegrityError as exc:
         db.rollback()
@@ -213,8 +211,10 @@ def verify_registration_email(
             status.HTTP_400_BAD_REQUEST,
             "Invalid or expired verification code",
         )
-    repo.verify_email_and_create_workspace(user)
-    return AuthMessage(message="Email verified. Sign in to continue.")
+    repo.verify_email(user)
+    return AuthMessage(
+        message="Email verified. A workspace administrator must grant access before you can sign in."
+    )
 
 
 @router.post(

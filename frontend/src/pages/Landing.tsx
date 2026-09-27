@@ -63,7 +63,7 @@ export function Landing({ onLogin, onRegister }: Props) {
               and coordinate campaigns across every client you manage.
             </p>
             <div className="landing-hero-actions">
-              <button type="button" className="landing-cta-primary" onClick={onRegister}>Start your workspace <span>→</span></button>
+              <button type="button" className="landing-cta-primary" onClick={onRegister}>Request access <span>→</span></button>
               <a href="#product" className="landing-cta-secondary"><span className="play-mark">▶</span> See how it works</a>
             </div>
             <div className="landing-proof-row" aria-label="Product benefits">

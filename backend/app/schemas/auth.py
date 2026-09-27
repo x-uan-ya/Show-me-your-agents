@@ -64,7 +64,6 @@ class RegistrationOtpStatus(BaseModel):
 
 class RegisterRequest(LoginRequest):
     display_name: str = Field(min_length=2, max_length=128)
-    workspace_name: str | None = Field(default=None, min_length=2, max_length=256)
 
     @field_validator("display_name")
     @classmethod
@@ -73,17 +72,6 @@ class RegisterRequest(LoginRequest):
         if len(cleaned) < 2:
             raise ValueError("Enter your name")
         return cleaned
-
-    @field_validator("workspace_name")
-    @classmethod
-    def clean_workspace_name(cls, value: str | None) -> str | None:
-        if value is None:
-            return None
-        cleaned = " ".join(value.split())
-        if len(cleaned) < 2:
-            raise ValueError("Enter a workspace name")
-        return cleaned
-
 
 class WorkspaceSummary(BaseModel):
     id: int
