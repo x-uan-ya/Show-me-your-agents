@@ -696,6 +696,49 @@ def test_admin_cannot_add_unverified_user_then_can_add_after_verification(
     )
 
 
+def test_admin_can_list_verified_accounts_waiting_for_workspace_access(auth_env):
+    client, ids = auth_env
+    session_factory = ids["session_factory"]
+    with session_factory() as db:
+        pending = User(
+            email="pending.approval@example.test",
+            password_hash=hash_password(PASSWORD),
+            display_name="Pending Approval",
+            role="viewer",
+            is_active=True,
+            email_verified=True,
+        )
+        unverified = User(
+            email="not.verified@example.test",
+            password_hash=hash_password(PASSWORD),
+            display_name="Not Verified",
+            role="viewer",
+            is_active=True,
+            email_verified=False,
+        )
+        db.add_all([pending, unverified])
+        db.commit()
+        pending_id = pending.id
+
+    assert _login(client, "strategist@example.test").status_code == 200
+    assert client.get("/api/workspaces/current/pending-users").status_code == 403
+
+    assert _login(client, "admin@example.test").status_code == 200
+    waiting = client.get("/api/workspaces/current/pending-users")
+    assert waiting.status_code == 200
+    assert [item["email"] for item in waiting.json()] == [
+        "pending.approval@example.test"
+    ]
+
+    approved = client.post(
+        "/api/workspaces/current/members",
+        json={"email": "pending.approval@example.test", "role": "viewer"},
+    )
+    assert approved.status_code == 200
+    assert approved.json()["user_id"] == pending_id
+    assert client.get("/api/workspaces/current/pending-users").json() == []
+
+
 def test_team_access_cannot_grant_or_modify_creator_admin(auth_env):
     client, ids = auth_env
     session_factory = ids["session_factory"]

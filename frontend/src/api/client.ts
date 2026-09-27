@@ -23,6 +23,7 @@ import type {
   InsightTypeInfo,
   MarketingBrief,
   MarketingBriefRecord,
+  PendingWorkspaceUser,
   PersistedCampaign,
   RegistrationOtpStatus,
   RegistrationPending,
@@ -253,6 +254,8 @@ export const api = {
     requestJson<void>("/auth/logout", { method: "POST" }, signal),
   listWorkspaceMembers: (signal?: AbortSignal) =>
     getJson<WorkspaceMember[]>("/workspaces/current/members", signal),
+  listPendingWorkspaceUsers: (signal?: AbortSignal) =>
+    getJson<PendingWorkspaceUser[]>("/workspaces/current/pending-users", signal),
   addWorkspaceMember: (
     email: string,
     role: ClientRole,

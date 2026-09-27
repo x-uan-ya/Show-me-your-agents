@@ -1,7 +1,7 @@
 """Workspace membership and per-client access administration."""
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import exists, select
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -12,6 +12,7 @@ from app.repositories.user_repository import UserRepository
 from app.schemas.workspace import (
     ClientMemberRead,
     ClientMemberWrite,
+    PendingWorkspaceUserRead,
     WorkspaceMemberAdd,
     WorkspaceMemberRead,
     WorkspaceRead,
@@ -61,6 +62,38 @@ def list_workspace_members(
             created_at=membership.created_at,
         )
         for membership, user in db.execute(stmt).all()
+    ]
+
+
+@router.get("/pending-users", response_model=list[PendingWorkspaceUserRead])
+def list_pending_workspace_users(
+    _: AccessContext = Depends(require_workspace_admin),
+    db: Session = Depends(get_db),
+) -> list[PendingWorkspaceUserRead]:
+    """List verified customer accounts still awaiting creator approval."""
+
+    has_active_workspace = exists().where(
+        WorkspaceMembership.user_id == User.id,
+        WorkspaceMembership.is_active.is_(True),
+    )
+    stmt = (
+        select(User)
+        .where(
+            User.is_active.is_(True),
+            User.email_verified.is_(True),
+            User.role != "admin",
+            ~has_active_workspace,
+        )
+        .order_by(User.created_at, User.id)
+    )
+    return [
+        PendingWorkspaceUserRead(
+            user_id=user.id,
+            email=user.email,
+            display_name=user.display_name,
+            created_at=user.created_at,
+        )
+        for user in db.scalars(stmt).all()
     ]
 
 
